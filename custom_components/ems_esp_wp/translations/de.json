@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EMS-ESP Gateway einrichten",
+        "description": "Verbindet sich mit einem EMS-ESP Gateway über die bereits konfigurierte MQTT-Integration.",
+        "data": {
+          "base_topic": "MQTT Base Topic (z.B. ems-esp)",
+          "device_name": "Gerätename (optional, wird automatisch erkannt)"
+        },
+        "data_description": {
+          "base_topic": "Das MQTT Base Topic wie in deinem EMS-ESP Gateway konfiguriert (Standard: ems-esp).",
+          "device_name": "Leer lassen zur automatischen Erkennung aus der EMS-ESP Product-ID."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Dieses Base Topic ist bereits konfiguriert.",
+      "mqtt_not_configured": "Die MQTT-Integration ist nicht eingerichtet. Bitte zuerst MQTT konfigurieren."
+    },
+    "error": {}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EMS-ESP Optionen",
+        "data": {
+          "base_topic": "MQTT Base Topic (z.B. ems-esp)",
+          "device_name": "Gerätename (optional)"
+        }
+      }
+    }
+  }
+}
