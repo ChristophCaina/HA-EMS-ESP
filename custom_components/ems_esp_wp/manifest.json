@@ -1,7 +1,7 @@
 {
   "domain": "ems_esp_wp",
   "name": "EMS-ESP Heat Pump",
-  "version": "0.2.10",
+  "version": "0.3.1",
   "documentation": "https://github.com/ChristophCaina/HA-EMS-ESP",
   "issue_tracker": "https://github.com/ChristophCaina/HA-EMS-ESP",
   "dependencies": ["mqtt"],
