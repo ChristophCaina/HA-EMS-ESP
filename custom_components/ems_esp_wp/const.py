@@ -3,6 +3,7 @@
 DOMAIN = "ems_esp_wp"
 CONF_BASE_TOPIC = "base_topic"
 CONF_DEVICE_NAME = "device_name"
+CONF_EMS_ESP_IP = "ems_esp_ip"
 
 DEFAULT_BASE_TOPIC = "ems-esp"
 DEFAULT_PORT = 1883

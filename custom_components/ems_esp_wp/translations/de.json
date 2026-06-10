@@ -2,31 +2,30 @@
   "config": {
     "step": {
       "user": {
-        "title": "EMS-ESP Gateway einrichten",
-        "description": "Verbindet sich mit einem EMS-ESP Gateway über die bereits konfigurierte MQTT-Integration.",
+        "title": "EMS-ESP Konfiguration",
         "data": {
           "base_topic": "MQTT Base Topic (z.B. ems-esp)",
-          "device_name": "Gerätename (optional, wird automatisch erkannt)"
-        },
-        "data_description": {
-          "base_topic": "Das MQTT Base Topic wie in deinem EMS-ESP Gateway konfiguriert (Standard: ems-esp).",
-          "device_name": "Leer lassen zur automatischen Erkennung aus der EMS-ESP Product-ID."
+          "ems_esp_ip": "EMS-ESP IP/Hostname (optional, für dynamische Entities)",
+          "device_name": "Gerätename (optional)"
         }
       }
     },
     "abort": {
-      "already_configured": "Dieses Base Topic ist bereits konfiguriert.",
-      "mqtt_not_configured": "Die MQTT-Integration ist nicht eingerichtet. Bitte zuerst MQTT konfigurieren."
+      "already_configured": "Bereits konfiguriert",
+      "mqtt_not_configured": "MQTT Integration nicht konfiguriert"
     },
-    "error": {}
+    "error": {
+      "cannot_connect": "Verbindung zur EMS-ESP API fehlgeschlagen"
+    }
   },
   "options": {
     "step": {
       "init": {
         "title": "EMS-ESP Optionen",
         "data": {
-          "base_topic": "MQTT Base Topic (z.B. ems-esp)",
-          "device_name": "Gerätename (optional)"
+          "base_topic": "MQTT Base Topic",
+          "ems_esp_ip": "EMS-ESP IP/Hostname (optional)",
+          "device_name": "Gerätename"
         }
       }
     }
