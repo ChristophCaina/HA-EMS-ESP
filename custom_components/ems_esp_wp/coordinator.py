@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any
 
+import aiohttp
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -84,6 +85,8 @@ class EmsEspCoordinator(DataUpdateCoordinator):
 
         # MQTT unsubscribe callbacks
         self._unsub: list[Any] = []
+        # Cache: hc_id → list of supported mode strings (from REST API)
+        self._hc_supported_modes: dict[int, list[str]] = {}
 
     # ------------------------------------------------------------------
     # Device info helpers for HA device registry
@@ -150,6 +153,27 @@ class EmsEspCoordinator(DataUpdateCoordinator):
     # ------------------------------------------------------------------
     # MQTT subscription management
     # ------------------------------------------------------------------
+
+    async def async_fetch_hc_capabilities(self) -> None:
+        """Fetch HC mode enum lists from EMS-ESP REST API (once at startup)."""
+        url = f"http://{self.gateway_info.hostname}.local/api/thermostat"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status != 200:
+                        return
+                    data = await resp.json(content_type=None)
+            # API returns list of entity dicts; find mode entities per HC
+            for entity in (data if isinstance(data, list) else []):
+                name = entity.get("name", "")
+                if name == "mode" and entity.get("type") == "enum":
+                    hc_id = int(entity.get("hc", 1))
+                    self._hc_supported_modes[hc_id] = entity.get("enum", [])
+                    _LOGGER.info(
+                        "HC%d supported modes: %s", hc_id, self._hc_supported_modes[hc_id]
+                    )
+        except Exception as e:
+            _LOGGER.debug("Could not fetch HC capabilities from REST API: %s", e)
 
     async def async_setup(self) -> None:
         """Subscribe to all relevant MQTT topics."""
@@ -281,6 +305,11 @@ class EmsEspCoordinator(DataUpdateCoordinator):
         data = self._parse_json(msg.payload)
         if data is None:
             return
+        # Inject supported_modes into each HC sub-dict before parsing
+        for i in range(1, 5):
+            key = f"hc{i}"
+            if key in data and isinstance(data[key], dict) and i in self._hc_supported_modes:
+                data[key]["_supported_modes"] = self._hc_supported_modes[i]
         self.thermostat_data = parse_thermostat_data(data)
         self.async_set_updated_data(self._build_data_snapshot())
 

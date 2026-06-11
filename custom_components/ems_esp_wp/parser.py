@@ -305,4 +305,18 @@ def _parse_hc(payload: dict, hc_id: int) -> EmsEspHcData:
     hc.design_temp = _safe_float(payload, "designtemp")
     hc.damped_outdoor_temp = _safe_float(payload, "dampedoutdoortemp")
     hc.summer_mode = _safe_bool(payload, "summermode")
+
+    # Device capabilities: read "mode" field's enum list from API entities
+    # The EMS-ESP API returns e.g.:
+    #   {"name": "mode", "type": "enum", "writeable": true,
+    #    "value": "day", "enum": ["auto","manual","day","night","eco","nofrost"]}
+    # For devices with active cooling support "cooling" appears in the list.
+    # The thermostat_data MQTT payload does not include enum metadata —
+    # it's only available via the REST API (/api/thermostat).
+    # When api_entities are available (config flow), they are injected here;
+    # otherwise supported_modes stays [] and climate.py falls back to ALL_PRESETS.
+    mode_enum = payload.get("_supported_modes")  # injected by config flow if available
+    if isinstance(mode_enum, list) and mode_enum:
+        hc.supported_modes = [str(m).lower() for m in mode_enum]
+
     return hc

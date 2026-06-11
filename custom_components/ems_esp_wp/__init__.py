@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, CONF_BASE_TOPIC, CONF_DEVICE_NAME
+from homeassistant.helpers.event import async_call_later
 from .coordinator import EmsEspCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +34,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Fetch HC capabilities from REST API after a short delay to allow
+    # the first MQTT info message to arrive (sets gateway_info.hostname).
+    # Result is cached in coordinator._hc_supported_modes and injected into
+    # each thermostat_data parse → climate entity modes become device-aware.
+    async def _fetch_capabilities(_now) -> None:
+        await coordinator.async_fetch_hc_capabilities()
+
+    entry.async_on_unload(async_call_later(hass, 10, _fetch_capabilities))
 
     # Register options update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
