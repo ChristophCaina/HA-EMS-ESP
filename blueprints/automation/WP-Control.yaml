@@ -3,7 +3,7 @@ blueprint:
   description: >
     Steuert eine Wärmepumpe (via EMS-ESP Integration) basierend auf PV-Überschuss.
     Optionale Berücksichtigung von Batteriespeicher und Wallbox/E-Auto.
-    Version: 0.0.4
+    v0.0.5
 
     Saisonale Prioritätskette:
     - Sommer (AT > Sommergrenze):  Batterie → WP nur WW-Boost
@@ -43,6 +43,18 @@ blueprint:
       selector:
         entity:
           domain: number
+
+    wp_wwcurtemp_entity:
+      name: "WP: WW Ist-Temperatur (Sensor, optional)"
+      description: >
+        Sensor für aktuelle Warmwasser-Ist-Temperatur.
+        Wenn konfiguriert: WW-Boost wird nur aktiviert wenn
+        Ist-Temperatur < Boost-Ziel minus 2°C.
+      default: {}
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
 
     wp_vl_normal:
       name: "WP: VL Maximum Normal (°C)"
@@ -290,12 +302,15 @@ blueprint:
 
 # ══════════════════════════════════════════════════════════════════════════
 trigger:
-  # Alle 30 Sekunden prüfen
   - platform: time_pattern
-    seconds: "/30"
-  # Sofort reagieren wenn PV-Überschuss sich ändert
-  - platform: state
+    minutes: "/5"
+  # Sofort reagieren wenn PV komplett wegfällt oder startet
+  - platform: numeric_state
     entity_id: !input pv_ueberschuss_sensor
+    below: 100
+  - platform: numeric_state
+    entity_id: !input pv_ueberschuss_sensor
+    above: !input pv_schwelle_low
 
 # ══════════════════════════════════════════════════════════════════════════
 # Inputs als Variablen exponieren (Pflicht für Nutzung in Templates)
@@ -325,9 +340,17 @@ variables:
   _vl_boost_med:     !input wp_vl_boost_medium
   _vl_boost_high:    !input wp_vl_boost_high
   _log:              !input log_aktionen
+  _ww_sensor:        !input wp_wwcurtemp_entity
 
   # Berechnete Werte
   _pv_w: "{{ states(_pv_sensor) | float(0) }}"
+  _ww_ist: >
+    {% if _ww_sensor not in [none, '', {}] %}
+      {{ states(_ww_sensor) | float(-1) }}
+    {% else %}-1{% endif %}
+  _ww_boost_noetig: >
+    {% if _ww_ist < 0 %}true
+    {% else %}{{ _ww_ist < _ww_boost | float(60) - 2 }}{% endif %}
   _at:   "{{ states(_at_sensor) | float(20) }}"
 
   _bat_soc: >
@@ -424,7 +447,7 @@ action:
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ _ww_boost }}"
+              value: "{{ _ww_boost if _ww_boost_noetig else _ww_normal }}"
 
       - conditions:
           - condition: template
@@ -439,7 +462,7 @@ action:
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ _ww_boost }}"
+              value: "{{ _ww_boost if _ww_boost_noetig else _ww_normal }}"
 
       - conditions:
           - condition: template
@@ -481,7 +504,8 @@ action:
             EMS-ESP WP PV-Steuerung: stufe={{ _wp_stufe }},
             pv={{ _pv_w | round(0) }}W netto={{ _netto_pv_w | round(0) }}W,
             at={{ _at }}°C saison={{ _jahreszeit }},
-            bat={{ _bat_soc }}% voll={{ _bat_voll }}
+            bat={{ _bat_soc }}% voll={{ _bat_voll }},
+            ww_ist={{ _ww_ist }}°C boost_noetig={{ _ww_boost_noetig }}
           level: info
 
 mode: single
