@@ -9,317 +9,279 @@ blueprint:
     - Übergang:                    Batterie bis Ziel → WP Boost
     - Heizperiode (AT < Winter):   WP Boost (hoher COP) → Batterie
 
-    Voraussetzungen:
-    - EMS-ESP Integration installiert und konfiguriert
-    - HA MQTT Integration aktiv
-
   domain: automation
   source_url: https://github.com/ChristophCaina/HA-EMS-ESP
 
   input:
 
-    section_wp:
-      name: "🔥 Wärmepumpe"
-      icon: mdi:heat-pump
-      collapsed: false
-      input:
+    # ── Wärmepumpe ───────────────────────────────────────────────────────
+    wp_pvmode_entity:
+      name: "WP: PV Modus (Select)"
+      description: "EMS-ESP PV Modus Entity (off/low/medium/high)"
+      selector:
+        entity:
+          domain: select
 
-        wp_pvmode_entity:
-          name: "PV Modus (Select)"
-          description: "EMS-ESP PV Modus Entity (off/low/medium/high)"
-          selector:
-            entity:
-              domain: select
+    wp_hpmaxpower_entity:
+      name: "WP: Max. Kompressorleistung (Number)"
+      description: "EMS-ESP hpmaxpower Entity (0-100%)"
+      selector:
+        entity:
+          domain: number
 
-        wp_hpmaxpower_entity:
-          name: "Max. Kompressorleistung (Number)"
-          description: "EMS-ESP hpmaxpower Entity (0-100%)"
-          selector:
-            entity:
-              domain: number
+    wp_wwseltemp_entity:
+      name: "WP: WW Solltemperatur (Number)"
+      description: "EMS-ESP wwseltemp Entity"
+      selector:
+        entity:
+          domain: number
 
-        wp_wwseltemp_entity:
-          name: "WW Solltemperatur (Number)"
-          description: "EMS-ESP wwseltemp Entity"
-          selector:
-            entity:
-              domain: number
+    wp_flowtempmax_entity:
+      name: "WP: HC1 VL Maximum (Number)"
+      description: "EMS-ESP flowtempmax Entity"
+      selector:
+        entity:
+          domain: number
 
-        wp_flowtempmax_entity:
-          name: "HC1 VL Maximum (Number)"
-          description: "EMS-ESP flowtempmax Entity"
-          selector:
-            entity:
-              domain: number
+    wp_vl_normal:
+      name: "WP: VL Maximum Normal (°C)"
+      description: "Vorlauf-Maximum ohne PV-Boost"
+      default: 55
+      selector:
+        number:
+          min: 30
+          max: 75
+          step: 1
+          unit_of_measurement: "°C"
 
-        wp_vl_normal:
-          name: "VL Maximum Normal (°C)"
-          description: "Vorlauf-Maximum ohne PV-Boost"
-          default: 55
-          selector:
-            number:
-              min: 30
-              max: 75
-              step: 1
-              unit_of_measurement: "°C"
+    wp_ww_normal:
+      name: "WP: WW Temperatur Normal (°C)"
+      default: 55
+      selector:
+        number:
+          min: 35
+          max: 60
+          step: 1
+          unit_of_measurement: "°C"
 
-        wp_ww_normal:
-          name: "WW Temperatur Normal (°C)"
-          default: 55
-          selector:
-            number:
-              min: 35
-              max: 60
-              step: 1
-              unit_of_measurement: "°C"
+    wp_ww_boost:
+      name: "WP: WW Temperatur Boost (°C)"
+      description: "WW-Solltemperatur bei hohem PV-Überschuss"
+      default: 60
+      selector:
+        number:
+          min: 45
+          max: 65
+          step: 1
+          unit_of_measurement: "°C"
 
-        wp_ww_boost:
-          name: "WW Temperatur Boost (°C)"
-          description: "WW-Solltemperatur bei hohem PV-Überschuss"
-          default: 60
-          selector:
-            number:
-              min: 45
-              max: 65
-              step: 1
-              unit_of_measurement: "°C"
+    wp_vl_boost_medium:
+      name: "WP: VL-Boost MEDIUM (°C)"
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          unit_of_measurement: "°C"
 
-        wp_vl_boost_medium:
-          name: "VL-Boost MEDIUM (°C)"
-          default: 3
-          selector:
-            number:
-              min: 1
-              max: 10
-              step: 1
-              unit_of_measurement: "°C"
+    wp_vl_boost_high:
+      name: "WP: VL-Boost HIGH (°C)"
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 15
+          step: 1
+          unit_of_measurement: "°C"
 
-        wp_vl_boost_high:
-          name: "VL-Boost HIGH (°C)"
-          default: 5
-          selector:
-            number:
-              min: 1
-              max: 15
-              step: 1
-              unit_of_measurement: "°C"
+    # ── PV-Anlage ─────────────────────────────────────────────────────────
+    pv_ueberschuss_sensor:
+      name: "PV: Überschuss Sensor"
+      description: "Positiv = Überschuss/Einspeisung, Negativ = Netzbezug (W)"
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
 
-    section_pv:
-      name: "☀️ PV-Anlage"
-      icon: mdi:solar-power
-      collapsed: false
-      input:
+    pv_schwelle_low:
+      name: "PV: Schwelle LOW (W)"
+      default: 500
+      selector:
+        number:
+          min: 100
+          max: 2000
+          step: 50
+          unit_of_measurement: "W"
 
-        pv_ueberschuss_sensor:
-          name: "PV-Überschuss Sensor"
-          description: >
-            Sensor für verfügbaren PV-Überschuss in Watt.
-            Positiv = Überschuss/Einspeisung, Negativ = Netzbezug.
-          selector:
-            entity:
-              domain: sensor
-              device_class: power
+    pv_schwelle_medium:
+      name: "PV: Schwelle MEDIUM (W)"
+      default: 2000
+      selector:
+        number:
+          min: 500
+          max: 5000
+          step: 100
+          unit_of_measurement: "W"
 
-        pv_schwelle_low:
-          name: "Schwelle LOW (W)"
-          description: "Ab diesem Überschuss: PV-Modus LOW"
-          default: 500
-          selector:
-            number:
-              min: 100
-              max: 2000
-              step: 50
-              unit_of_measurement: "W"
+    pv_schwelle_high:
+      name: "PV: Schwelle HIGH (W)"
+      default: 4000
+      selector:
+        number:
+          min: 1000
+          max: 10000
+          step: 100
+          unit_of_measurement: "W"
 
-        pv_schwelle_medium:
-          name: "Schwelle MEDIUM (W)"
-          description: "Ab diesem Überschuss: PV-Modus MEDIUM + VL-Boost"
-          default: 2000
-          selector:
-            number:
-              min: 500
-              max: 5000
-              step: 100
-              unit_of_measurement: "W"
+    # ── Außentemperatur & Saison ──────────────────────────────────────────
+    at_sensor:
+      name: "Saison: Außentemperatur Sensor"
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
 
-        pv_schwelle_high:
-          name: "Schwelle HIGH (W)"
-          description: "Ab diesem Überschuss: PV-Modus HIGH + WW-Boost"
-          default: 4000
-          selector:
-            number:
-              min: 1000
-              max: 10000
-              step: 100
-              unit_of_measurement: "W"
+    at_grenze_sommer:
+      name: "Saison: Sommergrenze AT (°C)"
+      description: "Über dieser AT: Sommer-Modus (kein Heiz-Boost)"
+      default: 17
+      selector:
+        number:
+          min: 10
+          max: 25
+          step: 1
+          unit_of_measurement: "°C"
 
-    section_saison:
-      name: "🌡️ Außentemperatur & Saison"
-      icon: mdi:thermometer
-      collapsed: false
-      input:
+    at_grenze_winter:
+      name: "Saison: Wintergrenze AT (°C)"
+      description: "Unter dieser AT: Heizperiode (WP Priorität vor Batterie)"
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 15
+          step: 1
+          unit_of_measurement: "°C"
 
-        at_sensor:
-          name: "Außentemperatur Sensor"
-          selector:
-            entity:
-              domain: sensor
-              device_class: temperature
+    # ── Batteriespeicher (optional) ───────────────────────────────────────
+    bat_vorhanden:
+      name: "Batterie: Vorhanden?"
+      default: false
+      selector:
+        boolean:
 
-        at_grenze_sommer:
-          name: "Sommergrenze AT (°C)"
-          description: "Über dieser AT: Sommer-Modus (kein Heiz-Boost)"
-          default: 17
-          selector:
-            number:
-              min: 10
-              max: 25
-              step: 1
-              unit_of_measurement: "°C"
+    bat_soc_sensor:
+      name: "Batterie: SoC Sensor (%)"
+      description: "Nur relevant wenn 'Batterie vorhanden' aktiviert"
+      default: {}
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
 
-        at_grenze_winter:
-          name: "Wintergrenze AT (°C)"
-          description: "Unter dieser AT: Heizperiode (WP Priorität vor Batterie)"
-          default: 10
-          selector:
-            number:
-              min: 0
-              max: 15
-              step: 1
-              unit_of_measurement: "°C"
+    bat_ziel_sommer:
+      name: "Batterie: Ziel-SoC Sommer (%)"
+      description: "WP-Boost erst wenn Batterie diesen SoC erreicht (Sommer)"
+      default: 95
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
 
-    section_batterie:
-      name: "🔋 Batteriespeicher (optional)"
-      icon: mdi:battery
-      collapsed: true
-      input:
+    bat_ziel_uebergang:
+      name: "Batterie: Ziel-SoC Übergang (%)"
+      default: 80
+      selector:
+        number:
+          min: 30
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
 
-        bat_vorhanden:
-          name: "Batteriespeicher vorhanden?"
-          default: false
-          selector:
-            boolean:
+    bat_ziel_winter:
+      name: "Batterie: Ziel-SoC Winter (%)"
+      description: "WP hat Priorität bis Batterie diesen SoC erreicht"
+      default: 70
+      selector:
+        number:
+          min: 20
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
 
-        bat_soc_sensor:
-          name: "Batterie SoC Sensor"
-          description: "State of Charge des Batteriespeichers (%)"
-          default: {}
-          selector:
-            entity:
-              domain: sensor
-              device_class: battery
+    bat_notfall_soc:
+      name: "Batterie: Notfall-SoC (%)"
+      description: "Unter diesem SoC: WP auf 50% Leistung begrenzen"
+      default: 10
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 5
+          unit_of_measurement: "%"
 
-        bat_ziel_sommer:
-          name: "Ziel-SoC Sommer (%)"
-          description: "WP-Boost erst wenn Batterie diesen SoC erreicht (Sommer)"
-          default: 95
-          selector:
-            number:
-              min: 50
-              max: 100
-              step: 5
-              unit_of_measurement: "%"
+    # ── E-Auto / Wallbox (optional) ───────────────────────────────────────
+    ev_vorhanden:
+      name: "E-Auto: Vorhanden?"
+      default: false
+      selector:
+        boolean:
 
-        bat_ziel_uebergang:
-          name: "Ziel-SoC Übergang (%)"
-          default: 80
-          selector:
-            number:
-              min: 30
-              max: 100
-              step: 5
-              unit_of_measurement: "%"
+    ev_laden_aktiv_sensor:
+      name: "E-Auto: Lädt gerade (Binary Sensor)"
+      description: "Nur relevant wenn 'E-Auto vorhanden' aktiviert"
+      default: {}
+      selector:
+        entity:
+          domain: binary_sensor
 
-        bat_ziel_winter:
-          name: "Ziel-SoC Winter (%)"
-          description: "WP hat Priorität bis Batterie diesen SoC erreicht"
-          default: 70
-          selector:
-            number:
-              min: 20
-              max: 100
-              step: 5
-              unit_of_measurement: "%"
+    ev_ladeleistung_sensor:
+      name: "E-Auto: Wallbox Ladeleistung (W)"
+      description: "Wird vom PV-Überschuss abgezogen"
+      default: {}
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
 
-        bat_notfall_soc:
-          name: "Notfall-SoC (%)"
-          description: "Unter diesem SoC: WP auf 50% Leistung begrenzen"
-          default: 10
-          selector:
-            number:
-              min: 5
-              max: 30
-              step: 5
-              unit_of_measurement: "%"
+    ev_soc_sensor:
+      name: "E-Auto: SoC Sensor (optional)"
+      default: {}
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
 
-    section_eauto:
-      name: "🚗 E-Auto / Wallbox (optional)"
-      icon: mdi:car-electric
-      collapsed: true
-      input:
+    ev_soc_mindestziel:
+      name: "E-Auto: Mindest-SoC (%)"
+      description: "Wallbox hat Priorität solange SoC darunter. 0 = kein SoC-Check"
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
 
-        ev_vorhanden:
-          name: "E-Auto / Wallbox vorhanden?"
-          default: false
-          selector:
-            boolean:
+    # ── Allgemein ─────────────────────────────────────────────────────────
+    update_interval:
+      name: "Prüfintervall (Sekunden)"
+      default: 60
+      selector:
+        number:
+          min: 10
+          max: 300
+          step: 10
+          unit_of_measurement: "s"
 
-        ev_laden_aktiv_sensor:
-          name: "E-Auto lädt gerade (Binary Sensor)"
-          default: {}
-          selector:
-            entity:
-              domain: binary_sensor
-
-        ev_ladeleistung_sensor:
-          name: "Wallbox Ladeleistung (W)"
-          description: "Wird vom PV-Überschuss abgezogen"
-          default: {}
-          selector:
-            entity:
-              domain: sensor
-              device_class: power
-
-        ev_soc_sensor:
-          name: "E-Auto SoC Sensor (optional)"
-          default: {}
-          selector:
-            entity:
-              domain: sensor
-              device_class: battery
-
-        ev_soc_mindestziel:
-          name: "E-Auto Mindest-SoC (%)"
-          description: "Wallbox hat Priorität solange E-Auto SoC darunter liegt. 0 = kein SoC-Check"
-          default: 80
-          selector:
-            number:
-              min: 0
-              max: 100
-              step: 5
-              unit_of_measurement: "%"
-
-    section_allgemein:
-      name: "⚙️ Allgemein"
-      icon: mdi:cog
-      collapsed: true
-      input:
-
-        update_interval:
-          name: "Prüfintervall (Sekunden)"
-          default: 60
-          selector:
-            number:
-              min: 10
-              max: 300
-              step: 10
-              unit_of_measurement: "s"
-
-        log_aktionen:
-          name: "Stufenänderungen im HA-Log protokollieren"
-          default: false
-          selector:
-            boolean:
+    log_aktionen:
+      name: "Stufenänderungen im HA-Log protokollieren"
+      default: false
+      selector:
+        boolean:
 
 # ══════════════════════════════════════════════════════════════════════════
 trigger:
@@ -327,57 +289,82 @@ trigger:
     seconds: "/{{ update_interval }}"
 
 # ══════════════════════════════════════════════════════════════════════════
+# Inputs als Variablen exponieren (Pflicht für Nutzung in Templates)
+# ══════════════════════════════════════════════════════════════════════════
 variables:
+  _pv_sensor:        !input pv_ueberschuss_sensor
+  _at_sensor:        !input at_sensor
+  _bat_soc_sensor:   !input bat_soc_sensor
+  _ev_aktiv_sensor:  !input ev_laden_aktiv_sensor
+  _ev_power_sensor:  !input ev_ladeleistung_sensor
+  _ev_soc_sensor:    !input ev_soc_sensor
+  _bat_vorhanden:    !input bat_vorhanden
+  _ev_vorhanden:     !input ev_vorhanden
+  _at_sommer:        !input at_grenze_sommer
+  _at_winter:        !input at_grenze_winter
+  _bat_sommer:       !input bat_ziel_sommer
+  _bat_uebergang:    !input bat_ziel_uebergang
+  _bat_winter:       !input bat_ziel_winter
+  _bat_notfall:      !input bat_notfall_soc
+  _ev_soc_ziel:      !input ev_soc_mindestziel
+  _schwelle_low:     !input pv_schwelle_low
+  _schwelle_medium:  !input pv_schwelle_medium
+  _schwelle_high:    !input pv_schwelle_high
+  _vl_normal:        !input wp_vl_normal
+  _ww_normal:        !input wp_ww_normal
+  _ww_boost:         !input wp_ww_boost
+  _vl_boost_med:     !input wp_vl_boost_medium
+  _vl_boost_high:    !input wp_vl_boost_high
 
-  _pv_w: "{{ states(pv_ueberschuss_sensor) | float(0) }}"
-  _at:   "{{ states(at_sensor) | float(20) }}"
+  # Berechnete Werte
+  _pv_w: "{{ states(_pv_sensor) | float(0) }}"
+  _at:   "{{ states(_at_sensor) | float(20) }}"
 
   _bat_soc: >
-    {% if bat_vorhanden and bat_soc_sensor is defined and bat_soc_sensor != {} %}
-      {{ states(bat_soc_sensor) | float(0) }}
+    {% if _bat_vorhanden and _bat_soc_sensor not in [none, '', {}] %}
+      {{ states(_bat_soc_sensor) | float(0) }}
     {% else %}100{% endif %}
 
   _ev_laden: >
-    {% if ev_vorhanden and ev_laden_aktiv_sensor is defined and ev_laden_aktiv_sensor != {} %}
-      {{ is_state(ev_laden_aktiv_sensor, 'on') }}
+    {% if _ev_vorhanden and _ev_aktiv_sensor not in [none, '', {}] %}
+      {{ is_state(_ev_aktiv_sensor, 'on') }}
     {% else %}false{% endif %}
 
   _ev_leistung: >
-    {% if ev_vorhanden and ev_ladeleistung_sensor is defined and ev_ladeleistung_sensor != {} %}
-      {{ states(ev_ladeleistung_sensor) | float(0) }}
+    {% if _ev_vorhanden and _ev_power_sensor not in [none, '', {}] %}
+      {{ states(_ev_power_sensor) | float(0) }}
     {% else %}0{% endif %}
 
   _ev_soc: >
-    {% if ev_vorhanden and ev_soc_sensor is defined and ev_soc_sensor != {} %}
-      {{ states(ev_soc_sensor) | float(100) }}
+    {% if _ev_vorhanden and _ev_soc_sensor not in [none, '', {}] %}
+      {{ states(_ev_soc_sensor) | float(100) }}
     {% else %}100{% endif %}
 
-  _ev_braucht_laden: >
-    {{ _ev_laden and _ev_soc < ev_soc_mindestziel | float(80) }}
+  _ev_braucht_laden: "{{ _ev_laden and _ev_soc < _ev_soc_ziel | float(80) }}"
 
   _netto_pv_w: >
     {% if _ev_braucht_laden %}{{ [_pv_w - _ev_leistung, 0] | max }}
     {% else %}{{ _pv_w }}{% endif %}
 
   _jahreszeit: >
-    {% if _at > at_grenze_sommer | float(17) %}sommer
-    {% elif _at >= at_grenze_winter | float(10) %}uebergang
+    {% if _at > _at_sommer | float(17) %}sommer
+    {% elif _at >= _at_winter | float(10) %}uebergang
     {% else %}heizperiode{% endif %}
 
   _bat_ziel: >
-    {% if _jahreszeit == 'sommer' %}{{ bat_ziel_sommer | float(95) }}
-    {% elif _jahreszeit == 'uebergang' %}{{ bat_ziel_uebergang | float(80) }}
-    {% else %}{{ bat_ziel_winter | float(70) }}{% endif %}
+    {% if _jahreszeit == 'sommer' %}{{ _bat_sommer | float(95) }}
+    {% elif _jahreszeit == 'uebergang' %}{{ _bat_uebergang | float(80) }}
+    {% else %}{{ _bat_winter | float(70) }}{% endif %}
 
-  _bat_voll: "{{ not bat_vorhanden or _bat_soc >= _bat_ziel }}"
-  _bat_leer: "{{ bat_vorhanden and _bat_soc < bat_notfall_soc | float(10) }}"
+  _bat_voll: "{{ not _bat_vorhanden or _bat_soc >= _bat_ziel | float }}"
+  _bat_leer: "{{ _bat_vorhanden and _bat_soc < _bat_notfall | float(10) }}"
   _pv_aktiv: "{{ _pv_w > 50 }}"
 
   _wp_stufe: >
-    {% set low = pv_schwelle_low | float(500) %}
-    {% set med = pv_schwelle_medium | float(2000) %}
-    {% set high = pv_schwelle_high | float(4000) %}
-    {% set p = _netto_pv_w %}
+    {% set low  = _schwelle_low  | float(500) %}
+    {% set med  = _schwelle_medium | float(2000) %}
+    {% set high = _schwelle_high | float(4000) %}
+    {% set p    = _netto_pv_w %}
     {% if not _pv_aktiv %}off
     {% elif _jahreszeit == 'sommer' %}
       {% if _bat_voll and p >= high %}high
@@ -422,12 +409,12 @@ action:
             target:
               entity_id: !input wp_flowtempmax_entity
             data:
-              value: "{{ wp_vl_normal | int + wp_vl_boost_high | int }}"
+              value: "{{ _vl_normal | int + _vl_boost_high | int }}"
           - service: number.set_value
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ wp_ww_boost }}"
+              value: "{{ _ww_boost }}"
 
       - conditions:
           - condition: template
@@ -437,12 +424,12 @@ action:
             target:
               entity_id: !input wp_flowtempmax_entity
             data:
-              value: "{{ wp_vl_normal }}"
+              value: "{{ _vl_normal }}"
           - service: number.set_value
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ wp_ww_boost }}"
+              value: "{{ _ww_boost }}"
 
       - conditions:
           - condition: template
@@ -452,12 +439,12 @@ action:
             target:
               entity_id: !input wp_flowtempmax_entity
             data:
-              value: "{{ wp_vl_normal | int + wp_vl_boost_medium | int }}"
+              value: "{{ _vl_normal | int + _vl_boost_med | int }}"
           - service: number.set_value
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ wp_ww_normal }}"
+              value: "{{ _ww_normal }}"
 
       - conditions:
           - condition: template
@@ -467,12 +454,12 @@ action:
             target:
               entity_id: !input wp_flowtempmax_entity
             data:
-              value: "{{ wp_vl_normal }}"
+              value: "{{ _vl_normal }}"
           - service: number.set_value
             target:
               entity_id: !input wp_wwseltemp_entity
             data:
-              value: "{{ wp_ww_normal }}"
+              value: "{{ _ww_normal }}"
 
   - if:
       - condition: template
