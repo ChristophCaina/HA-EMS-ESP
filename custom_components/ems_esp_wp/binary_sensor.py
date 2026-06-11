@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Static fallback: (key, name, device_class, device_type)
 STATIC_BINARY_SENSORS = [
-    ("heatingactive",  "Heizung aktiv",    BinarySensorDeviceClass.HEAT,    DEVICE_BOILER),
+    ("heatingactive",  "Heizung aktiv",    BinarySensorDeviceClass.RUNNING, DEVICE_BOILER),
     ("tapwateractive", "Warmwasser aktiv", BinarySensorDeviceClass.RUNNING, DEVICE_DHW),
     ("hpcompon",       "Kompressor aktiv", BinarySensorDeviceClass.RUNNING, DEVICE_BOILER),
 ]

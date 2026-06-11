@@ -152,6 +152,10 @@ class EmsEspHcData:
     summer_mode: bool = False
     # Damped outdoor temp
     damped_outdoor_temp: float | None = None
+    # Device capabilities — populated from API enum list for "mode" field
+    # e.g. ["auto", "manual", "day", "night", "eco", "nofrost", "cooling"]
+    # "cooling" only present if device supports active cooling
+    supported_modes: list[str] = field(default_factory=list)
     raw: dict = field(default_factory=dict)
 
 
