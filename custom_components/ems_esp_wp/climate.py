@@ -96,6 +96,7 @@ class EmsEspClimate(CoordinatorEntity, ClimateEntity):
     _attr_max_temp = 30.0
     _attr_target_temperature_step = 0.5
     _attr_has_entity_name = True
+    _attr_translation_key = "heizkreis"
 
     def __init__(self, coordinator, hc_id: int) -> None:
         super().__init__(coordinator)

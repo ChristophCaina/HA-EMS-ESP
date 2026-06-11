@@ -1,0 +1,19 @@
+{
+  "entity": {
+    "climate": {
+      "heizkreis": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto":   "mdi:calendar-clock",
+              "day":    "mdi:weather-sunny",
+              "night":  "mdi:weather-night",
+              "eco":    "mdi:leaf",
+              "manual": "mdi:hand-back-right"
+            }
+          }
+        }
+      }
+    }
+  }
+}
