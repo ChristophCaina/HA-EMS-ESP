@@ -3,7 +3,7 @@ blueprint:
   description: >
     Steuert eine Wärmepumpe (via EMS-ESP Integration) basierend auf PV-Überschuss.
     Optionale Berücksichtigung von Batteriespeicher und Wallbox/E-Auto.
-    Version 0.0.3
+    Version: 0.0.4
 
     Saisonale Prioritätskette:
     - Sommer (AT > Sommergrenze):  Batterie → WP nur WW-Boost
