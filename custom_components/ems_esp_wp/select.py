@@ -16,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 # Static fallback: (key, name, options, device_type, command_topic)
 STATIC_SELECTS = [
     ("pvmode",    "PV Modus",       ["off","low","medium","high"],    DEVICE_BOILER, "boiler/pvmode"),
-    ("silentmode","Silent Modus",   ["0","1","2","3"],                DEVICE_BOILER, "boiler/silentmode"),
+    ("silentmode","Silent Modus",   ["off","Low1","Low2","Low3"],     DEVICE_BOILER, "boiler/silentmode"),
     ("wwcomfort", "WW Komfort",     ["hot","eco","intelligent"],      DEVICE_BOILER, "boiler/wwcomfort"),
     ("mode",      "HC1 Betriebsart",["auto","day","night","eco","nofrost"], "hc1",  "thermostat/hc1/mode"),
 ]
@@ -113,10 +113,15 @@ class EmsEspStaticSelect(_EmsEspSelectBase):
         d = self.coordinator.data
         if self._device_type == "hc1" and d.get("thermostat"):
             hc = d["thermostat"].hcs.get(1)
-            return hc.raw.get(self._key) if hc else None
-        if d.get("boiler"):
-            return d["boiler"].raw.get(self._key)
-        return None
+            val = hc.raw.get(self._key) if hc else None
+        elif d.get("boiler"):
+            val = d["boiler"].raw.get(self._key)
+        else:
+            return None
+        # Convert int to string for selects like silentmode (0,1,2,3 → "0","1","2","3")
+        if val is None: return None
+        val_str = str(val)
+        return val_str if val_str in self._attr_options else None
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.async_publish_command(self._cmd_topic, option)

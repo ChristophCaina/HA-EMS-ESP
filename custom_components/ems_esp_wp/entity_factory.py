@@ -148,7 +148,16 @@ def classify_entity(entity: dict) -> dict:
     etype     = entity.get("type", "string")
     writeable = entity.get("writeable", False)
     uom       = entity.get("uom", "")
-    options   = entity.get("options", [])  # for enum types
+    # EMS-ESP may use different keys for enum options depending on firmware version
+    options   = (
+        entity.get("allowed_values")    # most common in newer firmware
+        or entity.get("enum_values")
+        or entity.get("options")
+        or entity.get("enum")
+        or []
+    )
+    # Ensure all options are strings
+    options = [str(o) for o in options]
 
     result: dict[str, Any] = {
         "ha_type":        None,

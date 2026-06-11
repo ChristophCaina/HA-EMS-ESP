@@ -73,7 +73,6 @@ STATIC_SENSORS = [
     ("metercomp",    "Strom Kompressor",          UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY,   SensorStateClass.TOTAL_INCREASING, DEVICE_BOILER, False),
     ("metereheat",   "Strom E-Heizer",            UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY,   SensorStateClass.TOTAL_INCREASING, DEVICE_BOILER, False),
     ("meterheat",    "Strom Heizen",              UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY,   SensorStateClass.TOTAL_INCREASING, DEVICE_BOILER, False),
-    ("metercool",    "Strom Kühlen",              UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY,   SensorStateClass.TOTAL_INCREASING, DEVICE_BOILER, False),
     ("servicecode",  "Servicecode",               None, None, None, DEVICE_BOILER, True),
     ("hpactivity",   "WP Aktivität",              None, None, None, DEVICE_BOILER, False),
     # DHW — keys match raw dict keys from parser/simulator
