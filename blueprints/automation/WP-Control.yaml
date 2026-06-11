@@ -1,7 +1,8 @@
 blueprint:
   name: "EMS-ESP Wärmepumpe PV-Steuerung"
   description: >
-    *v0.0.5*
+    **Version 0.0.5**
+    
     Steuert eine Wärmepumpe (via EMS-ESP Integration) basierend auf PV-Überschuss.
     Optionale Berücksichtigung von Batteriespeicher und Wallbox/E-Auto.
 
