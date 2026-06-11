@@ -269,7 +269,11 @@ blueprint:
     # ── Allgemein ─────────────────────────────────────────────────────────
     update_interval:
       name: "Prüfintervall (Sekunden)"
-      default: 60
+      description: >
+        Hinweis: Der Blueprint prüft alle 30 Sekunden.
+        Dieser Wert wird aktuell nicht verwendet — HA Blueprints
+        unterstützen keine variablen Trigger-Intervalle.
+      default: 30
       selector:
         number:
           min: 10
@@ -285,8 +289,12 @@ blueprint:
 
 # ══════════════════════════════════════════════════════════════════════════
 trigger:
+  # Alle 30 Sekunden prüfen
   - platform: time_pattern
-    seconds: "/{{ update_interval }}"
+    seconds: "/30"
+  # Sofort reagieren wenn PV-Überschuss sich ändert
+  - platform: state
+    entity_id: !input pv_ueberschuss_sensor
 
 # ══════════════════════════════════════════════════════════════════════════
 # Inputs als Variablen exponieren (Pflicht für Nutzung in Templates)
