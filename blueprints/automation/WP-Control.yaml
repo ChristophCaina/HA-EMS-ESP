@@ -3,6 +3,7 @@ blueprint:
   description: >
     Steuert eine Wärmepumpe (via EMS-ESP Integration) basierend auf PV-Überschuss.
     Optionale Berücksichtigung von Batteriespeicher und Wallbox/E-Auto.
+    Version 0.0.3
 
     Saisonale Prioritätskette:
     - Sommer (AT > Sommergrenze):  Batterie → WP nur WW-Boost
@@ -323,6 +324,7 @@ variables:
   _ww_boost:         !input wp_ww_boost
   _vl_boost_med:     !input wp_vl_boost_medium
   _vl_boost_high:    !input wp_vl_boost_high
+  _log:              !input log_aktionen
 
   # Berechnete Werte
   _pv_w: "{{ states(_pv_sensor) | float(0) }}"
@@ -471,7 +473,7 @@ action:
 
   - if:
       - condition: template
-        value_template: "{{ log_aktionen }}"
+        value_template: "{{ _log }}"
     then:
       - service: system_log.write
         data:
