@@ -1,0 +1,190 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # woechentlich - faengt Aenderungen an HA-Core-Anforderungen ab
+    # (hassfest/HACS), auch ohne eigenen Commit.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  python-checks:
+    name: Python Syntax & Konsistenz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Kompilier-Check aller Python-Dateien
+        run: python -m py_compile custom_components/ha_ems_esp/*.py
+
+      - name: const.py Import-Konsistenz
+        run: |
+          python - <<'EOF'
+          import ast
+          import pathlib
+          import re
+          import sys
+
+          base = pathlib.Path("custom_components/ha_ems_esp")
+          const_src = (base / "const.py").read_text(encoding="utf-8")
+          const_names = set(
+              re.findall(r"^([A-Z_][A-Z0-9_]*)\s*[:=]", const_src, re.MULTILINE)
+          )
+
+          problems = []
+          for path in sorted(base.glob("*.py")):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.ImportFrom) and node.module == "const":
+                      for alias in node.names:
+                          if alias.name not in const_names:
+                              problems.append((path.name, alias.name))
+
+          if problems:
+              print("Fehlende Symbole in const.py:")
+              for fname, name in problems:
+                  print(f"  {fname}: {name}")
+              sys.exit(1)
+
+          print("const.py Import-Check: OK")
+          EOF
+
+      - name: Zirkulaere interne Imports pruefen
+        run: |
+          python - <<'EOF'
+          import ast
+          import pathlib
+          import sys
+
+          base = pathlib.Path("custom_components/ha_ems_esp")
+          files = [p.stem for p in base.glob("*.py")]
+
+          import_graph: dict[str, set[str]] = {}
+          for fname in files:
+              path = base / f"{fname}.py"
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              deps = set()
+              for node in ast.walk(tree):
+                  if (
+                      isinstance(node, ast.ImportFrom)
+                      and node.module
+                      and node.level == 1
+                      and node.module != "const"
+                  ):
+                      deps.add(node.module)
+              import_graph[fname] = deps
+
+          def has_cycle(mod: str, path: tuple[str, ...] = ()) -> tuple[str, ...] | None:
+              if mod in path:
+                  return path[path.index(mod) :] + (mod,)
+              for dep in import_graph.get(mod, ()):
+                  result = has_cycle(dep, path + (mod,))
+                  if result:
+                      return result
+              return None
+
+          cycles = [c for m in import_graph if (c := has_cycle(m))]
+          if cycles:
+              print("Zirkulaere Imports gefunden:")
+              for c in cycles:
+                  print("  " + " -> ".join(c))
+              sys.exit(1)
+
+          print("Keine zirkulaeren Imports.")
+          EOF
+
+  json-checks:
+    name: JSON- und Uebersetzungs-Konsistenz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: JSON-Dateien validieren
+        run: |
+          python - <<'EOF'
+          import json
+          import pathlib
+          import sys
+
+          base = pathlib.Path("custom_components/ha_ems_esp")
+          files = [
+              base / "manifest.json",
+              base / "translations/de.json",
+              base / "translations/en.json",
+          ]
+
+          ok = True
+          for f in files:
+              try:
+                  json.loads(f.read_text(encoding="utf-8"))
+                  print(f"{f}: OK")
+              except Exception as err:  # noqa: BLE001
+                  print(f"{f}: FEHLER - {err}")
+                  ok = False
+
+          if not ok:
+              sys.exit(1)
+          EOF
+
+      - name: de.json / en.json Struktur-Konsistenz
+        run: |
+          python - <<'EOF'
+          import json
+          import pathlib
+          import sys
+
+
+          def flatten(d: dict, prefix: str = "") -> set[str]:
+              keys: set[str] = set()
+              for k, v in d.items():
+                  path = f"{prefix}.{k}" if prefix else k
+                  if isinstance(v, dict):
+                      keys |= flatten(v, path)
+                  else:
+                      keys.add(path)
+              return keys
+
+
+          base = pathlib.Path("custom_components/ha_ems_esp/translations")
+          de = flatten(json.loads((base / "de.json").read_text(encoding="utf-8")))
+          en = flatten(json.loads((base / "en.json").read_text(encoding="utf-8")))
+
+          missing_in_de = en - de
+          missing_in_en = de - en
+
+          if missing_in_de or missing_in_en:
+              if missing_in_de:
+                  print("Fehlt in de.json:", sorted(missing_in_de))
+              if missing_in_en:
+                  print("Fehlt in en.json:", sorted(missing_in_en))
+              sys.exit(1)
+
+          print("de.json / en.json Struktur konsistent.")
+          EOF
