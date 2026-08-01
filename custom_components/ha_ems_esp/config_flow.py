@@ -28,10 +28,12 @@ from .const import (
     CONF_MQTT_BASE_TOPIC,
     CONF_MQTT_DISCOVERY_ENABLED,
     CONF_MQTT_DISCOVERY_PREFIX,
+    CONF_MQTT_HEARTBEAT_TIMEOUT,
     CONF_WRITE_MODE,
     DEFAULT_MQTT_BASE_TOPIC,
     DEFAULT_MQTT_DISCOVERY_ENABLED,
     DEFAULT_MQTT_DISCOVERY_PREFIX,
+    DEFAULT_MQTT_HEARTBEAT_TIMEOUT,
     DOMAIN,
     WRITE_MODE_DEFAULT,
     WRITE_MODES,
@@ -81,6 +83,20 @@ def _mqtt_schema(defaults: dict[str, Any] | None = None) -> dict[Any, Any]:
             ),
         ): str,
         vol.Optional(
+            CONF_MQTT_HEARTBEAT_TIMEOUT,
+            default=defaults.get(
+                CONF_MQTT_HEARTBEAT_TIMEOUT, DEFAULT_MQTT_HEARTBEAT_TIMEOUT
+            ),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=30,
+                max=600,
+                step=10,
+                unit_of_measurement="s",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Optional(
             CONF_WRITE_MODE,
             default=defaults.get(CONF_WRITE_MODE, WRITE_MODE_DEFAULT),
         ): vol.In(WRITE_MODES),
@@ -94,6 +110,7 @@ def _options_from_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_MQTT_BASE_TOPIC: user_input[CONF_MQTT_BASE_TOPIC],
         CONF_MQTT_DISCOVERY_ENABLED: user_input[CONF_MQTT_DISCOVERY_ENABLED],
         CONF_MQTT_DISCOVERY_PREFIX: user_input[CONF_MQTT_DISCOVERY_PREFIX],
+        CONF_MQTT_HEARTBEAT_TIMEOUT: user_input[CONF_MQTT_HEARTBEAT_TIMEOUT],
         CONF_WRITE_MODE: user_input[CONF_WRITE_MODE],
     }
 

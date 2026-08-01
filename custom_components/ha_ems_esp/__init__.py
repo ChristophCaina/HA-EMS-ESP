@@ -9,11 +9,13 @@ siehe entity_factory.py Docstring.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import EmsEspApiClient
 from .const import CONF_API_TOKEN, CONF_HOST, DOMAIN
@@ -26,6 +28,15 @@ from .issues import gateway_unreachable_issue_id, mqtt_unavailable_issue_id
 from .mqtt import async_setup_mqtt_listener
 
 _LOGGER = logging.getLogger(__name__)
+
+# Wie oft erneut versucht wird, den MQTT-Listener aufzusetzen, falls der
+# erste Versuch fehlschlug (z.B. weil HA's MQTT-Integration beim Setup
+# unserer Integration gerade deaktiviert war). Ohne diesen Retry wuerde
+# der "mqtt_unavailable" Repair-Hinweis dauerhaft haengen bleiben, selbst
+# wenn MQTT spaeter wieder verfuegbar wird - der Listener (Watchdog,
+# Message-Handler), der das Issue normalerweise selbst wieder loescht,
+# waere ja nie erst zustande gekommen.
+MQTT_RETRY_INTERVAL = timedelta(minutes=2)
 
 # TODO: select fuer schreibbare enum-Entities folgt, sobald die
 # EMS-ESP API-Antwort fuer enum-Typen mit Optionsliste verifiziert ist
@@ -87,6 +98,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if PLATFORMS:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    await _async_setup_mqtt_with_retry(hass, entry)
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    return True
+
+
+async def _async_try_setup_mqtt(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Ein einzelner Versuch, den MQTT-Listener aufzusetzen. True bei Erfolg."""
     try:
         await async_setup_mqtt_listener(hass, entry)
     except Exception:  # noqa: BLE001 - MQTT-Live-Updates sind optional/best-effort,
@@ -106,13 +125,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             translation_key="mqtt_unavailable",
             translation_placeholders={"title": entry.title},
         )
-    else:
-        # Laufende Ueberwachung (Heartbeat-Timeout, status-Topic) uebernimmt
-        # mqtt.py selbst - hier nur der initiale Erfolgsfall.
-        ir.async_delete_issue(hass, DOMAIN, mqtt_unavailable_issue_id(entry))
+        return False
 
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Laufende Ueberwachung (Heartbeat-Timeout, status-Topic) uebernimmt
+    # mqtt.py selbst ab hier - dieser Aufruf war nur der initiale Erfolgsfall.
+    ir.async_delete_issue(hass, DOMAIN, mqtt_unavailable_issue_id(entry))
     return True
+
+
+async def _async_setup_mqtt_with_retry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Versucht den MQTT-Listener aufzusetzen, mit periodischem Retry bei Fehlschlag.
+
+    Ohne diesen Retry wuerde ein Fehlschlag beim Setup (z.B. weil HA's
+    MQTT-Integration in diesem Moment deaktiviert ist) den "mqtt_unavailable"
+    Repair-Hinweis dauerhaft haengen lassen: mqtt.async_setup_mqtt_listener
+    bricht bei einem Fehler ab, BEVOR der Watchdog/Message-Handler
+    registriert wird, der das Issue normalerweise selbst wieder loeschen
+    wuerde, sobald MQTT verfuegbar wird - ohne Retry bliebe es also stumm,
+    bis jemand die Integration manuell neu laedt.
+    """
+    if await _async_try_setup_mqtt(hass, entry):
+        return
+
+    @callback
+    def _retry(_now) -> None:
+        hass.async_create_task(_async_attempt())
+
+    async def _async_attempt() -> None:
+        if await _async_try_setup_mqtt(hass, entry):
+            unsub()
+
+    unsub = async_track_time_interval(hass, _retry, MQTT_RETRY_INTERVAL)
+    entry.async_on_unload(unsub)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

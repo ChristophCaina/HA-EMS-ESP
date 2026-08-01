@@ -55,7 +55,13 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import json_loads
 
-from .const import CONF_MQTT_BASE_TOPIC, DEFAULT_MQTT_BASE_TOPIC, DOMAIN
+from .const import (
+    CONF_MQTT_BASE_TOPIC,
+    CONF_MQTT_HEARTBEAT_TIMEOUT,
+    DEFAULT_MQTT_BASE_TOPIC,
+    DEFAULT_MQTT_HEARTBEAT_TIMEOUT,
+    DOMAIN,
+)
 from .coordinator import EmsEspStructureCoordinator, EmsEspSystemCoordinator
 from .issues import mqtt_unavailable_issue_id
 
@@ -67,12 +73,11 @@ _STATUS_SUBTOPIC = "status"
 _HEARTBEAT_SUBTOPIC = "heartbeat"
 _INFO_SUBTOPIC = "info"
 
-# ~2,5x der EMS-ESP Standard-Heartbeat-Periode (60s) - toleriert einen
-# einzelnen ausgefallenen Heartbeat plus etwas Jitter, bevor MQTT als
-# ausgefallen gilt. Nicht dynamisch aus mqtt.publishTimeHeartbeat
-# abgeleitet (waere praeziser, aber mehr Komplexitaet fuer wenig Nutzen).
-_HEARTBEAT_TIMEOUT = timedelta(seconds=150)
-_WATCHDOG_INTERVAL = timedelta(seconds=30)
+# Watchdog-Poll-Intervall: fest und fein genug, um auch ein kurz
+# eingestelltes Timeout (Minimum 30s im Config/Options Flow) noch sinnvoll
+# zu erkennen. Das eigentliche Timeout ist konfigurierbar (siehe
+# CONF_MQTT_HEARTBEAT_TIMEOUT), Default DEFAULT_MQTT_HEARTBEAT_TIMEOUT.
+_WATCHDOG_INTERVAL = timedelta(seconds=15)
 
 
 def _extract_value(item: dict[str, Any]) -> Any:
@@ -154,18 +159,39 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
     base_topic = entry.options.get(CONF_MQTT_BASE_TOPIC, DEFAULT_MQTT_BASE_TOPIC)
     subscribe_topic = f"{base_topic}/+"
     issue_id = mqtt_unavailable_issue_id(entry)
+    heartbeat_timeout = timedelta(
+        seconds=entry.options.get(
+            CONF_MQTT_HEARTBEAT_TIMEOUT, DEFAULT_MQTT_HEARTBEAT_TIMEOUT
+        )
+    )
 
     # Geteilter veraenderlicher Zustand zwischen Message-Handler und
     # Watchdog-Timer (Closure-Variablen, wie schon bei
-    # dynamic_entity.async_setup_dynamic_platform).
-    state: dict[str, Any] = {"last_heartbeat_at": None, "issue_active": False}
+    # dynamic_entity.async_setup_dynamic_platform). "setup_at" dient als
+    # Referenzpunkt, falls NIE ein Heartbeat ankommt (z.B. HA's
+    # MQTT-Integration ist deaktiviert, die Subscription haengt einfach
+    # folgenlos in der Luft, statt sofort einen Fehler zu werfen) - ohne
+    # diesen Fallback haette der Watchdog in diesem Fall nie ausgeloest.
+    state: dict[str, Any] = {
+        "last_heartbeat_at": None,
+        "setup_at": dt_util.utcnow(),
+        "issue_active": False,
+    }
 
     def _mark_mqtt_ok() -> None:
+        _LOGGER.debug(
+            "_mark_mqtt_ok aufgerufen (issue_active vorher=%s)", state["issue_active"]
+        )
         if state["issue_active"]:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
             state["issue_active"] = False
+            _LOGGER.debug("Repair-Issue %s geloescht", issue_id)
 
     def _mark_mqtt_unavailable() -> None:
+        _LOGGER.debug(
+            "_mark_mqtt_unavailable aufgerufen (issue_active vorher=%s)",
+            state["issue_active"],
+        )
         if not state["issue_active"]:
             ir.async_create_issue(
                 hass,
@@ -177,6 +203,7 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
                 translation_placeholders={"title": entry.title},
             )
             state["issue_active"] = True
+            _LOGGER.debug("Repair-Issue %s erstellt", issue_id)
 
     @callback
     def _handle_message(msg: mqtt.ReceiveMessage) -> None:
@@ -201,6 +228,7 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
 
         if subtopic == _HEARTBEAT_SUBTOPIC:
             state["last_heartbeat_at"] = dt_util.utcnow()
+            _LOGGER.debug("EMS-ESP MQTT heartbeat empfangen um %s", state["last_heartbeat_at"])
             _mark_mqtt_ok()
             try:
                 payload = json_loads(msg.payload)
@@ -265,14 +293,15 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
 
     @callback
     def _check_heartbeat_timeout(_now) -> None:
-        last = state["last_heartbeat_at"]
-        if last is None:
-            return  # noch nie einen Heartbeat gesehen - keine Aussage moeglich
-        if dt_util.utcnow() - last > _HEARTBEAT_TIMEOUT:
-            _LOGGER.debug(
-                "Kein EMS-ESP MQTT heartbeat mehr seit %s - markiere MQTT als nicht verfuegbar",
-                last,
-            )
+        reference = state["last_heartbeat_at"] or state["setup_at"]
+        elapsed = dt_util.utcnow() - reference
+        _LOGGER.debug(
+            "MQTT-Watchdog-Check: %.0fs seit letztem Signal (Timeout bei %.0fs), issue_active=%s",
+            elapsed.total_seconds(),
+            heartbeat_timeout.total_seconds(),
+            state["issue_active"],
+        )
+        if elapsed > heartbeat_timeout:
             _mark_mqtt_unavailable()
 
     unsubscribe = await mqtt.async_subscribe(hass, subscribe_topic, _handle_message, qos=0)
@@ -280,4 +309,10 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
     entry.async_on_unload(
         async_track_time_interval(hass, _check_heartbeat_timeout, _WATCHDOG_INTERVAL)
     )
-    _LOGGER.debug("EMS-ESP MQTT Live-Updates abonniert auf %s", subscribe_topic)
+    _LOGGER.debug(
+        "EMS-ESP MQTT Live-Updates abonniert auf %s (setup_at=%s, watchdog alle %s, timeout=%s)",
+        subscribe_topic,
+        state["setup_at"],
+        _WATCHDOG_INTERVAL,
+        heartbeat_timeout,
+    )

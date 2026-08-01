@@ -10,6 +10,7 @@
           "mqtt_base_topic": "MQTT base topic",
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {
@@ -24,6 +25,7 @@
           "mqtt_base_topic": "MQTT base topic",
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {
@@ -48,6 +50,7 @@
           "mqtt_base_topic": "MQTT base topic",
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {
@@ -59,7 +62,11 @@
   "issues": {
     "mqtt_unavailable": {
       "title": "MQTT live updates unavailable",
-      "description": "MQTT live updates could not be set up for \"{title}\". Home Assistant's MQTT integration is probably not configured, or the broker is unreachable. The integration keeps working over REST, but values update more slowly (up to 5 minutes instead of real-time). Check Home Assistant's MQTT integration (Settings → Devices & Services) as well as the MQTT settings on the EMS-ESP gateway itself. This notice clears automatically once the integration reloads and MQTT is reachable."
+      "description": "MQTT live updates are currently unavailable for \"{title}\" (broker unreachable, or MQTT disabled on the gateway). The integration keeps working over REST, but values update more slowly (up to 5 minutes instead of real-time). Check Home Assistant's MQTT integration (Settings → Devices & Services) as well as the MQTT settings on the EMS-ESP gateway itself. This notice clears automatically once MQTT data starts arriving again."
+    },
+    "gateway_unreachable": {
+      "title": "EMS-ESP gateway unreachable",
+      "description": "\"{title}\" at {host} is not responding to REST requests. Check that the gateway is powered on and reachable on the network (e.g. via ping or opening http://{host}/api/system/info in a browser). This notice clears automatically once the gateway is reachable again."
     }
   }
 }

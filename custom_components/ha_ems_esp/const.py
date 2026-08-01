@@ -22,6 +22,7 @@ CONF_MQTT_BASE_TOPIC = "mqtt_base_topic"
 CONF_MQTT_DISCOVERY_ENABLED = "mqtt_discovery_enabled"
 CONF_MQTT_DISCOVERY_PREFIX = "mqtt_discovery_prefix"
 CONF_WRITE_MODE = "write_mode"
+CONF_MQTT_HEARTBEAT_TIMEOUT = "mqtt_heartbeat_timeout"
 CONF_STRUCTURE_SCAN_INTERVAL = "structure_scan_interval"
 
 # ---------------------------------------------------------------------------
@@ -32,6 +33,12 @@ DEFAULT_MQTT_DISCOVERY_ENABLED = True
 DEFAULT_MQTT_DISCOVERY_PREFIX = "homeassistant"
 DEFAULT_STRUCTURE_SCAN_INTERVAL = 300  # Sekunden, Poll auf /entities je bekanntem Device-Typ
 DEFAULT_SYSTEM_INFO_SCAN_INTERVAL = 60  # Sekunden, Poll auf /api/system/info (Diagnose)
+# Wie lange ohne MQTT-Heartbeat, bevor der "mqtt_unavailable" Repair-Hinweis
+# erscheint. 60s = ein Standard-Heartbeat-Intervall - ein einzelner leicht
+# verspaeteter Heartbeat kann damit schon kurz den Hinweis ausloesen (loest
+# sich beim naechsten Heartbeat automatisch wieder). Konfigurierbar,
+# Konservativere Werte (z.B. 150s) vermeiden solche kurzen Fehlalarme.
+DEFAULT_MQTT_HEARTBEAT_TIMEOUT = 60  # Sekunden
 
 # ---------------------------------------------------------------------------
 # Schreibpfad-Optionen fuer Kommandos (number.set_value, select.select_option, ...)

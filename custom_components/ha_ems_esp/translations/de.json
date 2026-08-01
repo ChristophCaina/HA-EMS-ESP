@@ -10,6 +10,7 @@
           "mqtt_base_topic": "MQTT Base Topic",
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {
@@ -24,6 +25,7 @@
           "mqtt_base_topic": "MQTT Base Topic",
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {
@@ -48,6 +50,7 @@
           "mqtt_base_topic": "MQTT Base Topic",
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {
@@ -59,7 +62,11 @@
   "issues": {
     "mqtt_unavailable": {
       "title": "MQTT-Live-Updates nicht verfügbar",
-      "description": "Für „{title}“ konnten die MQTT-Live-Updates nicht eingerichtet werden. Home Assistant's MQTT-Integration ist vermutlich nicht konfiguriert oder der Broker nicht erreichbar. Die Integration funktioniert weiterhin über REST, Werte aktualisieren sich dabei aber langsamer (bis zu 5 Minuten statt in Echtzeit). Prüfe Home Assistant's MQTT-Integration (Einstellungen → Geräte & Dienste) sowie die MQTT-Einstellungen auf dem EMS-ESP-Gateway selbst. Dieser Hinweis verschwindet automatisch, sobald die Integration neu geladen wird und MQTT dabei erreichbar ist."
+      "description": "Für „{title}“ sind die MQTT-Live-Updates gerade nicht verfügbar (Broker nicht erreichbar, oder MQTT auf dem Gateway deaktiviert). Die Integration funktioniert weiterhin über REST, Werte aktualisieren sich dabei aber langsamer (bis zu 5 Minuten statt in Echtzeit). Prüfe Home Assistant's MQTT-Integration (Einstellungen → Geräte & Dienste) sowie die MQTT-Einstellungen auf dem EMS-ESP-Gateway selbst. Dieser Hinweis verschwindet automatisch, sobald wieder MQTT-Daten ankommen."
+    },
+    "gateway_unreachable": {
+      "title": "EMS-ESP Gateway nicht erreichbar",
+      "description": "„{title}“ unter {host} antwortet gerade nicht auf REST-Anfragen. Prüfe, ob das Gateway eingeschaltet und im Netzwerk erreichbar ist (z.B. per Ping oder Aufruf von http://{host}/api/system/info im Browser). Dieser Hinweis verschwindet automatisch, sobald das Gateway wieder erreichbar ist."
     }
   }
 }
