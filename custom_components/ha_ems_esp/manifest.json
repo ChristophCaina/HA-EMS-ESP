@@ -1,6 +1,6 @@
 {
   "domain": "ha_ems_esp",
-  "name": "EMS-ESP (Custom)",
+  "name": "HA EMS-ESP",
   "codeowners": ["@ChristophCaina"],
   "config_flow": true,
   "dependencies": ["mqtt"],
