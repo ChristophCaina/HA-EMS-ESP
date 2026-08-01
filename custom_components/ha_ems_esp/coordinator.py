@@ -75,11 +75,32 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # gehalten und erst in merged_data() zusammengefuehrt.
         self.mqtt_overlay: dict[str, dict[str, Any]] = {}
 
+    # "circuit"-qualifizierte Settings, die NICHT Teil der /api/system/info
+    # Sammel-Antwort sind, aber trotzdem in Diagnose-Sensoren landen sollen
+    # (bestaetigt: showerAlertTrigger/showerAlertColdshot). Werden hier
+    # zusaetzlich abgefragt und unter "settings" eingemischt, damit
+    # gateway_diagnostics.py sie einheitlich lesen kann, egal ob ein Wert
+    # aus der Sammel-Antwort oder einem Einzel-Aufruf kommt.
+    _EXTRA_SETTINGS = ("showerAlertTrigger", "showerAlertColdshot")
+
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self._client.async_get_system_info()
+            system_info = await self._client.async_get_system_info()
         except CannotConnect as err:
             raise UpdateFailed(f"Gateway nicht erreichbar: {err}") from err
+
+        settings = system_info.setdefault("settings", {})
+        for name in self._EXTRA_SETTINGS:
+            try:
+                detail = await self._client.async_get_system_setting("settings", name)
+            except CannotConnect:
+                # Nicht kritisch fuer den Rest der Diagnose - einfach
+                # auslassen, naechster Poll versucht's erneut.
+                continue
+            if isinstance(detail, dict) and "value" in detail:
+                settings[name] = detail["value"]
+
+        return system_info
 
     def device_types(self) -> list[str]:
         """Aktuell laut /api/system/info erkannte Geraetetypen (devices[].type)."""

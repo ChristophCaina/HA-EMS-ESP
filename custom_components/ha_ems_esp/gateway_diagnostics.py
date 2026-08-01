@@ -264,6 +264,51 @@ GATEWAY_SENSORS: tuple[GatewaySensorDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda info: info.get("mqtt", {}).get("messageFails"),
     ),
+    GatewaySensorDescription(
+        key="shower_duration",
+        name="Duschdauer",
+        icon="mdi:shower",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=None,
+        # Nur MQTT (siehe mqtt.py "shower_data"-Topic) - kein REST-
+        # Aequivalent, bleibt ohne MQTT dauerhaft "Unbekannt".
+        value_fn=lambda info: info.get("shower", {}).get("duration"),
+    ),
+    GatewaySensorDescription(
+        key="shower_min_duration",
+        name="Mindestdauer Duscherkennung",
+        icon="mdi:shower-head",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        # Konfigurationswert, read-only ueber die API - bereits Teil der
+        # regulaeren /api/system/info Sammel-Antwort.
+        value_fn=lambda info: info.get("settings", {}).get("showerMinDuration"),
+    ),
+    GatewaySensorDescription(
+        key="shower_alert_trigger",
+        name="Duschalarm-Schwelle",
+        icon="mdi:alarm-light-outline",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        # Bestaetigt in Minuten (nicht Sekunden!) - siehe EMS-ESP-Doku:
+        # "After 7 minutes (configurable) running the hot water it will
+        # send out a warning". Nicht Teil der Sammel-Antwort, wird per
+        # Einzelabfrage nachgeladen (siehe coordinator.py _EXTRA_SETTINGS).
+        value_fn=lambda info: info.get("settings", {}).get("showerAlertTrigger"),
+    ),
+    GatewaySensorDescription(
+        key="shower_alert_coldshot",
+        name="Kaltwasserstoß-Dauer",
+        icon="mdi:snowflake",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        # Bestaetigt in Sekunden - siehe EMS-ESP-Doku: "sending cold water
+        # for 10 seconds (also configurable)". Ebenfalls per Einzelabfrage
+        # nachgeladen, nicht Teil der Sammel-Antwort.
+        value_fn=lambda info: info.get("settings", {}).get("showerAlertColdshot"),
+    ),
 )
 
 GATEWAY_BINARY_SENSORS: tuple[GatewayBinarySensorDescription, ...] = (
@@ -307,5 +352,15 @@ GATEWAY_BINARY_SENSORS: tuple[GatewayBinarySensorDescription, ...] = (
         icon="mdi:file-document-outline",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda info: info.get("syslog", {}).get("enabled"),
+    ),
+    GatewayBinarySensorDescription(
+        key="shower_active",
+        name="Dusche aktiv",
+        icon="mdi:shower",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        entity_category=None,
+        # Nur MQTT (siehe mqtt.py "shower_active"-Topic) - kein REST-
+        # Aequivalent, bleibt ohne MQTT dauerhaft "Unbekannt".
+        value_fn=lambda info: info.get("shower", {}).get("active"),
     ),
 )

@@ -31,7 +31,7 @@ CONF_STRUCTURE_SCAN_INTERVAL = "structure_scan_interval"
 DEFAULT_MQTT_BASE_TOPIC = "ems-esp"
 DEFAULT_MQTT_DISCOVERY_ENABLED = True
 DEFAULT_MQTT_DISCOVERY_PREFIX = "homeassistant"
-DEFAULT_STRUCTURE_SCAN_INTERVAL = 300  # Sekunden, Poll auf /entities je bekanntem Device-Typ
+DEFAULT_STRUCTURE_SCAN_INTERVAL = 300  # Sekunden, Poll auf /entities je bekanntem Device-Typ - jetzt konfigurierbar (CONF_STRUCTURE_SCAN_INTERVAL)
 DEFAULT_SYSTEM_INFO_SCAN_INTERVAL = 60  # Sekunden, Poll auf /api/system/info (Diagnose)
 # Wie lange ohne MQTT-Heartbeat, bevor der "mqtt_unavailable" Repair-Hinweis
 # erscheint. 60s = ein Standard-Heartbeat-Intervall - ein einzelner leicht
@@ -62,6 +62,13 @@ SUPPORTED_MQTT_DISCOVERY_TYPE = "homeassistant"
 API_PATH_SYSTEM_INFO = "/api/system/info"
 API_PATH_DEVICE_ENTITIES = "/api/{device}/entities"
 API_PATH_DEVICE_COMMAND = "/api/{device}/{command}"
+# Fuer "circuit"-qualifizierte System-Einstellungen aus /api/system/entities
+# (z.B. "settings.showerTimer") - bestaetigt gegen echte Tests, ANDERER
+# URL-Aufbau als der normale Geraete-Schreibpfad oben (zusaetzliches
+# Circuit-Pfadsegment). Bisher nur fuer circuit="settings" bestaetigt;
+# andere Circuits (ntp/mqtt/modbus/analog/system) sind noch nicht getestet,
+# folgen vermutlich demselben Muster.
+API_PATH_SYSTEM_SETTING = "/api/system/{circuit}/{name}"
 
 # ---------------------------------------------------------------------------
 # Firmware-Versionscheck (reine Information, siehe update.py - KEIN

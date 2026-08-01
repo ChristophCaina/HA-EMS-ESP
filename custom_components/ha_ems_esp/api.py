@@ -16,7 +16,12 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import API_PATH_DEVICE_COMMAND, API_PATH_DEVICE_ENTITIES, API_PATH_SYSTEM_INFO
+from .const import (
+    API_PATH_DEVICE_COMMAND,
+    API_PATH_DEVICE_ENTITIES,
+    API_PATH_SYSTEM_INFO,
+    API_PATH_SYSTEM_SETTING,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +74,14 @@ class EmsEspApiClient:
             return result
         return []
 
+    async def async_get_system_setting(self, circuit: str, name: str) -> dict[str, Any]:
+        """GET /api/system/<circuit>/<name> - Einzelwert einer "circuit"-
+        qualifizierten System-Einstellung, die NICHT Teil der Sammel-Antwort
+        von /api/system/info ist (bestaetigt bei showerAlertTrigger/
+        showerAlertColdshot).
+        """
+        return await self._get(API_PATH_SYSTEM_SETTING.format(circuit=circuit, name=name))
+
     async def async_post_command(
         self, device: str, command: str, value: Any
     ) -> dict[str, Any]:
@@ -80,6 +93,22 @@ class EmsEspApiClient:
         Gateway nicht aktiviert ist.
         """
         url = f"http://{self._host}{API_PATH_DEVICE_COMMAND.format(device=device, command=command)}"
+        return await self._post(url, value)
+
+    async def async_post_system_setting(
+        self, circuit: str, name: str, value: Any
+    ) -> dict[str, Any]:
+        """POST /api/system/<circuit>/<name> - Schreibpfad fuer "circuit"-
+        qualifizierte System-Einstellungen aus /api/system/entities (z.B.
+        "settings.showerTimer" -> circuit="settings", name="showerTimer").
+
+        ANDERER URL-Aufbau als async_post_command (zusaetzliches Circuit-
+        Pfadsegment) - bestaetigt gegen echte Tests fuer circuit="settings".
+        """
+        url = f"http://{self._host}{API_PATH_SYSTEM_SETTING.format(circuit=circuit, name=name)}"
+        return await self._post(url, value)
+
+    async def _post(self, url: str, value: Any) -> dict[str, Any]:
         headers = {"Authorization": f"Bearer {self._api_token}"} if self._api_token else None
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):

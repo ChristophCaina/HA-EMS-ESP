@@ -28,6 +28,11 @@ temperaturesensor):
   Fall also blind.
 - <base>/info - einmalig beim Boot gesendet. Liefert "bootTime" (absoluter
   Zeitstempel), den REST gar nicht hat.
+- <base>/shower_active (Rohtext "an"/"aus") und <base>/shower_data (JSON
+  mit "duration" in Sekunden) - Duscherkennung, eigenstaendiges MQTT-only
+  Feature ohne REST-Aequivalent (kein "shower" in /api/system/info ->
+  devices[]). Landet ueber dasselbe mqtt_overlay-Muster wie heartbeat/info
+  bei den Gateway-Sensoren ("Dusche aktiv"/"Duschdauer").
 
 Kommando-Schreibpfad (async_publish_command): bestaetigt gegen die
 offizielle EMS-ESP Commands-Referenz (emsesp.org/Commands) - ANDERES
@@ -63,6 +68,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import EmsEspStructureCoordinator, EmsEspSystemCoordinator
+from .entity_factory import coerce_bool
 from .issues import mqtt_unavailable_issue_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +78,12 @@ _DATA_TOPIC_SUFFIX = "_data"
 _STATUS_SUBTOPIC = "status"
 _HEARTBEAT_SUBTOPIC = "heartbeat"
 _INFO_SUBTOPIC = "info"
+# Duscherkennung - eigenstaendiges MQTT-only Feature, kein REST-Aequivalent
+# (kein "shower" in /api/system/info -> devices[]). Bestaetigt gegen echte
+# EMS-ESP MQTT-Discovery-Payloads: shower_active ist Rohtext ("an"/"aus"),
+# shower_data ist JSON mit einem "duration"-Feld (Sekunden).
+_SHOWER_ACTIVE_SUBTOPIC = "shower_active"
+_SHOWER_DATA_SUBTOPIC = "shower_data"
 
 # Watchdog-Poll-Intervall: fest und fein genug, um auch ein kurz
 # eingestelltes Timeout (Minimum 30s im Config/Options Flow) noch sinnvoll
@@ -248,6 +260,26 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
                 return
             if isinstance(payload, dict):
                 _apply_info_overlay(system_coordinator, payload)
+                system_coordinator.async_update_listeners()
+            return
+
+        if subtopic == _SHOWER_ACTIVE_SUBTOPIC:
+            # Rohtext ("an"/"aus"), kein JSON.
+            is_active = coerce_bool(msg.payload)
+            system_coordinator.mqtt_overlay.setdefault("shower", {})["active"] = is_active
+            system_coordinator.async_update_listeners()
+            return
+
+        if subtopic == _SHOWER_DATA_SUBTOPIC:
+            try:
+                payload = json_loads(msg.payload)
+            except ValueError:
+                _LOGGER.debug("Ungueltiges JSON auf %s: %s", msg.topic, msg.payload)
+                return
+            if isinstance(payload, dict) and "duration" in payload:
+                system_coordinator.mqtt_overlay.setdefault("shower", {})[
+                    "duration"
+                ] = payload["duration"]
                 system_coordinator.async_update_listeners()
             return
 
