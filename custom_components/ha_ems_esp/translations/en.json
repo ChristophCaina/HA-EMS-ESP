@@ -55,5 +55,11 @@
         }
       }
     }
+  },
+  "issues": {
+    "mqtt_unavailable": {
+      "title": "MQTT live updates unavailable",
+      "description": "MQTT live updates could not be set up for \"{title}\". Home Assistant's MQTT integration is probably not configured, or the broker is unreachable. The integration keeps working over REST, but values update more slowly (up to 5 minutes instead of real-time). Check Home Assistant's MQTT integration (Settings → Devices & Services) as well as the MQTT settings on the EMS-ESP gateway itself. This notice clears automatically once the integration reloads and MQTT is reachable."
+    }
   }
 }

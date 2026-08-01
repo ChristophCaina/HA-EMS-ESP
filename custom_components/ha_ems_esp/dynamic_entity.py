@@ -78,8 +78,6 @@ class EmsDynamicEntity(CoordinatorEntity[EmsEspStructureCoordinator]):
 
     @property
     def available(self) -> bool:
-        if self.coordinator.mqtt_available is False:
-            return False
         return super().available and self._current_raw() is not None
 
     async def _async_write_value(self, value: Any) -> None:

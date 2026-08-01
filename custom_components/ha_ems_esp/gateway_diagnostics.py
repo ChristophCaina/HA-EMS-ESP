@@ -29,6 +29,7 @@ from homeassistant.const import (
     UnitOfInformation,
     UnitOfTime,
 )
+from homeassistant.util import dt as dt_util
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -233,6 +234,35 @@ GATEWAY_SENSORS: tuple[GatewaySensorDescription, ...] = (
         # verifiziert. Deshalb bewusst Text statt einer geratenen
         # problem/connectivity-Interpretation.
         value_fn=lambda info: info.get("ap", {}).get("provisionMode"),
+    ),
+    GatewaySensorDescription(
+        key="boot_time",
+        name="Letzter Boot",
+        icon="mdi:restart",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=None,
+        # Kommt ausschliesslich vom MQTT "info"-Topic (einmalig beim Boot
+        # gesendet) - REST liefert nur die relative uptimeSec, keinen
+        # absoluten Zeitstempel. Erscheint deshalb erst, sobald MQTT
+        # mindestens einmal seit dem letzten Neustart verbunden war.
+        value_fn=lambda info: dt_util.parse_datetime(info.get("system", {}).get("bootTime"))
+        if info.get("system", {}).get("bootTime")
+        else None,
+    ),
+    GatewaySensorDescription(
+        key="mqtt_messages_sent",
+        name="MQTT-Nachrichten gesendet",
+        icon="mdi:upload-network",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        # Ebenfalls nur vom MQTT "heartbeat"-Topic - kein REST-Gegenstueck.
+        value_fn=lambda info: info.get("mqtt", {}).get("messagesSent"),
+    ),
+    GatewaySensorDescription(
+        key="mqtt_message_fails",
+        name="MQTT-Nachrichten fehlgeschlagen",
+        icon="mdi:upload-network-outline",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda info: info.get("mqtt", {}).get("messageFails"),
     ),
 )
 

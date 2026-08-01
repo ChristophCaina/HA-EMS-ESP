@@ -34,7 +34,7 @@ async def async_setup_entry(
     async_add_entities(
         GatewayDiagnosticSensor(system_coordinator, entry, description)
         for description in GATEWAY_SENSORS
-        if description.condition_fn(system_coordinator.data or {})
+        if description.condition_fn(system_coordinator.merged_data())
     )
     async_add_entities([ConfiguredHostSensor(entry)])
 
@@ -68,16 +68,11 @@ class GatewayDiagnosticSensor(CoordinatorEntity[EmsEspSystemCoordinator], Sensor
         )
 
     @property
-    def available(self) -> bool:
-        if self.coordinator.mqtt_available is False:
-            return False
-        return super().available
-
-    @property
     def native_value(self):
-        if self.coordinator.data is None:
+        merged = self.coordinator.merged_data()
+        if not merged:
             return None
-        return self._description.value_fn(self.coordinator.data)
+        return self._description.value_fn(merged)
 
 
 class EmsDynamicSensor(EmsDynamicEntity, SensorEntity):

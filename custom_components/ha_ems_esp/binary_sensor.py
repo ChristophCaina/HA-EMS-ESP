@@ -65,16 +65,11 @@ class GatewayDiagnosticBinarySensor(
         )
 
     @property
-    def available(self) -> bool:
-        if self.coordinator.mqtt_available is False:
-            return False
-        return super().available
-
-    @property
     def is_on(self) -> bool | None:
-        if self.coordinator.data is None:
+        merged = self.coordinator.merged_data()
+        if not merged:
             return None
-        return self._description.value_fn(self.coordinator.data)
+        return self._description.value_fn(merged)
 
 
 class EmsDynamicBinarySensor(EmsDynamicEntity, BinarySensorEntity):

@@ -56,6 +56,13 @@ API_PATH_SYSTEM_INFO = "/api/system/info"
 API_PATH_DEVICE_ENTITIES = "/api/{device}/entities"
 API_PATH_DEVICE_COMMAND = "/api/{device}/{command}"
 
+# ---------------------------------------------------------------------------
+# Firmware-Versionscheck (reine Information, siehe update.py - KEIN
+# automatisches Flashen, Risiko eines Bricks bei falscher Binary-Variante).
+# ---------------------------------------------------------------------------
+GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/emsesp/EMS-ESP32/releases/latest"
+DEFAULT_FIRMWARE_CHECK_INTERVAL = 43200  # 12 Stunden in Sekunden
+
 # Referenz-Liste bekannter EMS-ESP Geraetetypen (aus der emsesp.org Commands-
 # Referenz). Wird NICHT mehr fuer den Struktur-Poll verwendet - die
 # Coordinators lesen die tatsaechlich vorhandenen Geraete direkt aus

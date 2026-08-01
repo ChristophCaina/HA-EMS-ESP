@@ -1,22 +1,28 @@
 """Die ha_ems_esp Integration.
 
-Aktueller Stand (Neuaufbau): Config Flow, REST-Client und beide
-Struktur-/Diagnose-Coordinators stehen. Das Gateway wird als eigenes
-HA-Device registriert. Entity-Plattformen (sensor/number/select/...) und
-die dynamische entity_factory folgen im naechsten Schritt - PLATFORMS ist
-deshalb bewusst noch leer.
+Config Flow, REST-Client, beide Struktur-/Diagnose-Coordinators, MQTT-Live-
+Push und Repair-Issues fuer Verbindungsprobleme (MQTT und REST/Gateway)
+stehen. Das Gateway wird als eigenes HA-Device registriert. select
+(schreibbare enum-Entities) und climate (Thermostat-Sollwert) folgen noch,
+siehe entity_factory.py Docstring.
 """
 from __future__ import annotations
 
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 
 from .api import EmsEspApiClient
 from .const import CONF_API_TOKEN, CONF_HOST, DOMAIN
-from .coordinator import EmsEspStructureCoordinator, EmsEspSystemCoordinator
+from .coordinator import (
+    EmsEspFirmwareCoordinator,
+    EmsEspStructureCoordinator,
+    EmsEspSystemCoordinator,
+)
+from .issues import gateway_unreachable_issue_id, mqtt_unavailable_issue_id
 from .mqtt import async_setup_mqtt_listener
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 # EMS-ESP API-Antwort fuer enum-Typen mit Optionsliste verifiziert ist
 # (siehe entity_factory.py Docstring). climate (Thermostat-Sollwert)
 # folgt ebenfalls noch als eigener Sonderfall.
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "number", "switch"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "number", "switch", "update"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -35,9 +41,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     system_coordinator = EmsEspSystemCoordinator(hass, client)
     structure_coordinator = EmsEspStructureCoordinator(hass, client)
+    firmware_coordinator = EmsEspFirmwareCoordinator(hass)
 
     await system_coordinator.async_config_entry_first_refresh()
     await structure_coordinator.async_config_entry_first_refresh()
+    # async_refresh() statt async_config_entry_first_refresh(): ein
+    # GitHub-Ausfall/Rate-Limit soll den Rest der Integration nicht per
+    # ConfigEntryNotReady blockieren - Firmware-Check ist rein informativ.
+    await firmware_coordinator.async_refresh()
 
     _async_register_gateway_device(hass, entry, system_coordinator.data)
 
@@ -45,7 +56,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "client": client,
         "system_coordinator": system_coordinator,
         "structure_coordinator": structure_coordinator,
+        "firmware_coordinator": firmware_coordinator,
     }
+
+    # Repair-Issue "Gateway nicht erreichbar": reagiert auf jeden Refresh
+    # (Erfolg oder Fehlschlag) beider Coordinators - REST ist damit die
+    # alleinige, selbstheilende Quelle fuer diesen Hinweis, unabhaengig
+    # von MQTT. Wird NACH dem ersten (erzwungenermassen erfolgreichen,
+    # sonst waere async_config_entry_first_refresh oben schon mit
+    # ConfigEntryNotReady abgebrochen) Refresh registriert.
+    @callback
+    def _check_gateway_reachable() -> None:
+        issue_id = gateway_unreachable_issue_id(entry)
+        if system_coordinator.last_update_success and structure_coordinator.last_update_success:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+        else:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="gateway_unreachable",
+                translation_placeholders={"title": entry.title, "host": host},
+            )
+
+    entry.async_on_unload(system_coordinator.async_add_listener(_check_gateway_reachable))
+    entry.async_on_unload(structure_coordinator.async_add_listener(_check_gateway_reachable))
 
     if PLATFORMS:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -60,6 +97,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "Werte bleiben ueber REST-Polling aktuell.",
             exc_info=True,
         )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            mqtt_unavailable_issue_id(entry),
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="mqtt_unavailable",
+            translation_placeholders={"title": entry.title},
+        )
+    else:
+        # Laufende Ueberwachung (Heartbeat-Timeout, status-Topic) uebernimmt
+        # mqtt.py selbst - hier nur der initiale Erfolgsfall.
+        ir.async_delete_issue(hass, DOMAIN, mqtt_unavailable_issue_id(entry))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
@@ -72,6 +122,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        ir.async_delete_issue(hass, DOMAIN, mqtt_unavailable_issue_id(entry))
+        ir.async_delete_issue(hass, DOMAIN, gateway_unreachable_issue_id(entry))
     return unload_ok
 
 
