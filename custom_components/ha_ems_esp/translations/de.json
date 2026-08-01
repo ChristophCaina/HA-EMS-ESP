@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EMS-ESP Einrichtung",
+        "description": "Das Gateway selbst wird immer als eigenes Geraet ueber /api/system/info angelegt. Boiler, Thermostat usw. werden automatisch zur Laufzeit erkannt, sobald sie am EMS-Bus haengen.",
+        "data": {
+          "host": "Host / IP-Adresse (REST-API)",
+          "api_token": "Access Token (fuer Schreibbefehle)",
+          "mqtt_base_topic": "MQTT Base Topic",
+          "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
+          "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "write_mode": "Schreibpfad fuer Kommandos"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP Webinterface -> Settings -> Security -> Manage Users -> Schluessel-Symbol beim Admin-User. Leer lassen, wenn 'Bypass Access Token authorization' auf dem Gateway aktiviert ist."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "EMS-ESP Gateway gefunden",
+        "description": "Ein EMS-ESP Gateway wurde unter {host} gefunden. Bitte die Einstellungen unten bestaetigen - sie muessen mit der Konfiguration auf dem Gateway selbst uebereinstimmen.",
+        "data": {
+          "api_token": "Access Token (fuer Schreibbefehle)",
+          "mqtt_base_topic": "MQTT Base Topic",
+          "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
+          "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "write_mode": "Schreibpfad fuer Kommandos"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP Webinterface -> Settings -> Security -> Manage Users -> Schluessel-Symbol beim Admin-User. Leer lassen, wenn 'Bypass Access Token authorization' auf dem Gateway aktiviert ist."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unter dieser Host-Adresse war /api/system/info nicht erreichbar. IP/Hostname pruefen und sicherstellen, dass EMS-ESP eingeschaltet und im Netzwerk erreichbar ist."
+    },
+    "abort": {
+      "already_configured": "Dieses Gateway ist bereits eingerichtet.",
+      "not_ems_esp_device": "Das gefundene Geraet sieht nicht wie ein EMS-ESP Gateway aus."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EMS-ESP Optionen",
+        "data": {
+          "api_token": "Access Token (fuer Schreibbefehle)",
+          "mqtt_base_topic": "MQTT Base Topic",
+          "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
+          "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
+          "write_mode": "Schreibpfad fuer Kommandos"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP Webinterface -> Settings -> Security -> Manage Users -> Schluessel-Symbol beim Admin-User. Leer lassen, wenn 'Bypass Access Token authorization' auf dem Gateway aktiviert ist."
+        }
+      }
+    }
+  }
+}

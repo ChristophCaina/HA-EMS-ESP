@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EMS-ESP setup",
+        "description": "The gateway itself is always registered as its own device via /api/system/info. Boiler, thermostat, etc. are detected automatically at runtime once connected to the EMS bus.",
+        "data": {
+          "host": "Host / IP address (REST API)",
+          "api_token": "Access token (for write commands)",
+          "mqtt_base_topic": "MQTT base topic",
+          "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
+          "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "write_mode": "Command write path"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP web UI -> Settings -> Security -> Manage Users -> key icon on the admin user. Leave empty if 'Bypass Access Token authorization' is enabled on the gateway."
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "EMS-ESP gateway found",
+        "description": "Found an EMS-ESP gateway at {host}. Confirm the settings below - they must match what's configured on the gateway itself.",
+        "data": {
+          "api_token": "Access token (for write commands)",
+          "mqtt_base_topic": "MQTT base topic",
+          "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
+          "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "write_mode": "Command write path"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP web UI -> Settings -> Security -> Manage Users -> key icon on the admin user. Leave empty if 'Bypass Access Token authorization' is enabled on the gateway."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach /api/system/info on that host. Check the IP/hostname and that EMS-ESP is powered on."
+    },
+    "abort": {
+      "already_configured": "This gateway is already configured.",
+      "not_ems_esp_device": "The discovered device does not look like an EMS-ESP gateway."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EMS-ESP options",
+        "data": {
+          "api_token": "Access token (for write commands)",
+          "mqtt_base_topic": "MQTT base topic",
+          "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
+          "mqtt_discovery_prefix": "MQTT discovery prefix",
+          "write_mode": "Command write path"
+        },
+        "data_description": {
+          "api_token": "EMS-ESP web UI -> Settings -> Security -> Manage Users -> key icon on the admin user. Leave empty if 'Bypass Access Token authorization' is enabled on the gateway."
+        }
+      }
+    }
+  }
+}
