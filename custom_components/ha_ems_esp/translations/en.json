@@ -11,6 +11,7 @@
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
           "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
+          "structure_scan_interval": "REST structure poll interval (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {
@@ -26,6 +27,7 @@
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
           "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
+          "structure_scan_interval": "REST structure poll interval (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {
@@ -51,6 +53,7 @@
           "mqtt_discovery_enabled": "Gateway has MQTT Discovery enabled",
           "mqtt_discovery_prefix": "MQTT discovery prefix",
           "mqtt_heartbeat_timeout": "MQTT heartbeat timeout (seconds)",
+          "structure_scan_interval": "REST structure poll interval (seconds)",
           "write_mode": "Command write path"
         },
         "data_description": {

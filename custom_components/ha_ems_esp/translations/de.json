@@ -11,6 +11,7 @@
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
           "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
+          "structure_scan_interval": "REST-Struktur-Poll-Intervall (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {
@@ -26,6 +27,7 @@
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
           "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
+          "structure_scan_interval": "REST-Struktur-Poll-Intervall (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {
@@ -51,6 +53,7 @@
           "mqtt_discovery_enabled": "Gateway hat MQTT Discovery aktiviert",
           "mqtt_discovery_prefix": "MQTT Discovery-Prefix",
           "mqtt_heartbeat_timeout": "MQTT Heartbeat-Timeout (Sekunden)",
+          "structure_scan_interval": "REST-Struktur-Poll-Intervall (Sekunden)",
           "write_mode": "Schreibpfad fuer Kommandos"
         },
         "data_description": {

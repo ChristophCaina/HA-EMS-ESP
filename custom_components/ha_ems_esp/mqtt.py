@@ -8,11 +8,11 @@ Dependency "mqtt").
 
 Abgedeckte Topics (bestaetigt gegen echte Payloads von analogsensor/
 temperaturesensor):
-- <base>/<device_type>_data - die eigentlichen Werte. Jeder Eintrag im
-  Payload hat ein "name"-Feld, das den REST-Entity-Key matcht (der
-  aeussere Payload-Key ist z.B. GPIO-Nummer oder 1-Wire-ID, NICHT der
-  Name). Das Wertfeld heisst je nach Geraetetyp "value" oder "temp"
-  (z.B. bei temperaturesensor) - beides wird abgedeckt.
+- <base>/<device_type>_data - die eigentlichen Werte, in ZWEI bestaetigten
+  Formen: verschachtelt ({"<gpio/id>": {"name":..., "value"/"temp":...}},
+  z.B. bei analogsensor/temperaturesensor) oder FLACH ({"<entity_name>":
+  <wert>}, bestaetigt bei custom_data/Custom Entities - dort ist der
+  aeussere Key bereits der Entity-Name). Beide werden geparst.
 - <base>/status - Online/Offline (LWT). Loest bei einem Statuswechsel einen
   sofortigen REST-Refresh beider Coordinators aus (Verfuegbarkeit haengt
   ausschliesslich an REST, siehe coordinator.py) und aktualisiert direkt
@@ -273,13 +273,21 @@ async def async_setup_mqtt_listener(hass: HomeAssistant, entry: ConfigEntry) -> 
 
         updated_entities = [dict(entity) for entity in entities]
         changed = False
-        for item in payload.values():
-            if not isinstance(item, dict):
-                continue
-            name = item.get("name")
-            if not name:
-                continue
-            value = _extract_value(item)
+        # Zwei bestaetigte Payload-Formen fuer <device>_data:
+        # - verschachtelt (analogsensor_data, temperaturesensor_data, ...):
+        #   {"<gpio_oder_id>": {"name": "...", "value"/"temp": ...}}
+        # - FLACH (bestaetigt bei custom_data): {"<entity_name>": <wert>}
+        #   Hier ist der aeussere Key bereits der Entity-Name, der Wert
+        #   steht direkt dahinter statt in einem verschachtelten Dict.
+        for outer_key, item in payload.items():
+            if isinstance(item, dict):
+                name = item.get("name")
+                if not name:
+                    continue
+                value = _extract_value(item)
+            else:
+                name = outer_key
+                value = item
             for entity in updated_entities:
                 if entity.get("name") == name and entity.get("value") != value:
                     entity["value"] = value

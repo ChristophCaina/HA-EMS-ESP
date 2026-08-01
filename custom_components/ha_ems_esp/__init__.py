@@ -18,7 +18,13 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 
 from .api import EmsEspApiClient
-from .const import CONF_API_TOKEN, CONF_HOST, DOMAIN
+from .const import (
+    CONF_API_TOKEN,
+    CONF_HOST,
+    CONF_STRUCTURE_SCAN_INTERVAL,
+    DEFAULT_STRUCTURE_SCAN_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import (
     EmsEspFirmwareCoordinator,
     EmsEspStructureCoordinator,
@@ -42,7 +48,7 @@ MQTT_RETRY_INTERVAL = timedelta(minutes=2)
 # EMS-ESP API-Antwort fuer enum-Typen mit Optionsliste verifiziert ist
 # (siehe entity_factory.py Docstring). climate (Thermostat-Sollwert)
 # folgt ebenfalls noch als eigener Sonderfall.
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "number", "switch", "update"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "number", "switch", "text", "update"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -51,7 +57,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = EmsEspApiClient(hass, host, entry.options.get(CONF_API_TOKEN))
 
     system_coordinator = EmsEspSystemCoordinator(hass, client)
-    structure_coordinator = EmsEspStructureCoordinator(hass, client)
+    structure_scan_interval = entry.options.get(
+        CONF_STRUCTURE_SCAN_INTERVAL, DEFAULT_STRUCTURE_SCAN_INTERVAL
+    )
+    structure_coordinator = EmsEspStructureCoordinator(hass, client, structure_scan_interval)
     firmware_coordinator = EmsEspFirmwareCoordinator(hass)
 
     await system_coordinator.async_config_entry_first_refresh()

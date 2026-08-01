@@ -21,6 +21,8 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -39,6 +41,7 @@ from .entity_factory import (
     EmsEntityPlatform,
     build_entity_descriptors,
     device_info_for,
+    is_gateway_local,
 )
 from .mqtt import async_publish_command
 
@@ -118,6 +121,14 @@ class EmsDynamicEntity(CoordinatorEntity[EmsEspStructureCoordinator]):
                 errors.append(f"MQTT fehlgeschlagen: {err}")
 
         if successes == 0:
+            # Der Schreibversuch selbst ist fehlgeschlagen (anders als der
+            # Race-Condition-Fall bei Erfolg, siehe _optimistic_update) -
+            # hier gibt es keinen neuen Wert zum optimistisch Setzen, aber
+            # der Cache koennte trotzdem veraltet sein. Ohne diesen Refresh
+            # wuerde der zuletzt bekannte (evtl. laengst ueberholte) Wert
+            # bis zum naechsten planmaessigen Poll (bis zu 5 Min) oder
+            # einem manuellen Reload stehen bleiben.
+            await self.coordinator.async_request_refresh()
             raise HomeAssistantError(
                 f"Kommando an {self.device_type}/{self.entity_key} fehlgeschlagen: "
                 + "; ".join(errors)
@@ -166,11 +177,19 @@ def async_setup_dynamic_platform(
     Coordinator, um neu auftauchende Geraete/Entities (z.B. wenn die
     Waermepumpe erstmals am Bus erscheint) ohne HA-Neustart
     nachzuregistrieren. Bereits erzeugte Entities werden nicht doppelt
-    angelegt (siehe "known"-Set).
+    angelegt (siehe "known"-dict).
+
+    Entfernt umgekehrt auch Entities, die die API nicht mehr liefert (z.B.
+    eine auf dem Gateway geloeschte Custom Entity) - nicht nur als
+    "nicht verfuegbar" haengen lassen, sondern aktiv aus der Entity-
+    Registry entfernen. Wird dadurch ein Geraet leer (keine Entities auf
+    keiner Plattform mehr), wird das Geraet ebenfalls entfernt. Das
+    Gateway-Device selbst und Gateway-lokale Typen sind davon nie
+    betroffen (siehe _cleanup_orphaned_devices/is_gateway_local).
     """
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator: EmsEspStructureCoordinator = data["structure_coordinator"]
-    known: set[tuple[str, str]] = set()
+    known: dict[tuple[str, str], EmsDynamicEntity] = {}
 
     def _descriptors_for_platform() -> list[EmsEntityDescriptor]:
         if not coordinator.data:
@@ -190,15 +209,66 @@ def async_setup_dynamic_platform(
             ident = (descriptor.device_type, descriptor.key)
             if ident in known:
                 continue
-            known.add(ident)
-            new_entities.append(entity_class(coordinator, entry, descriptor))
+            entity = entity_class(coordinator, entry, descriptor)
+            known[ident] = entity
+            new_entities.append(entity)
         if new_entities:
             async_add_entities(new_entities)
+
+    def _remove_stale_entities() -> None:
+        """Entfernt Entities, die die API nicht mehr liefert (z.B. eine auf
+        dem Gateway geloeschte Custom Entity), statt sie fuer immer als
+        "nicht verfuegbar" haengen zu lassen. Raeumt anschliessend auch
+        Geraete auf, die dadurch keine Entities mehr haben.
+        """
+        current_idents = {
+            (d.device_type, d.key) for d in _descriptors_for_platform()
+        }
+        stale_idents = set(known) - current_idents
+        if not stale_idents:
+            return
+
+        entity_registry = er.async_get(hass)
+        affected_device_types: set[str] = set()
+        for ident in stale_idents:
+            entity = known.pop(ident)
+            if entity.entity_id and entity_registry.async_get(entity.entity_id):
+                entity_registry.async_remove(entity.entity_id)
+            affected_device_types.add(ident[0])
+
+        _cleanup_orphaned_devices(affected_device_types)
+
+    def _cleanup_orphaned_devices(device_types: set[str]) -> None:
+        """Entfernt HA-Devices ohne verbleibende Entities.
+
+        Prueft nur die von der gerade erfolgten Entfernung betroffenen
+        Geraetetypen (nicht global) und ruehrt das Gateway-Device sowie
+        Gateway-lokale Typen (temperaturesensor/analogsensor) NIE an -
+        die haengen ja ohnehin am Gateway-Device, nicht an einem eigenen.
+        """
+        device_registry = dr.async_get(hass)
+        entity_registry = er.async_get(hass)
+        gateway_id = entry.unique_id or entry.entry_id
+
+        for device_type in device_types:
+            if is_gateway_local(device_type):
+                continue
+            device = device_registry.async_get_device(
+                identifiers={(DOMAIN, f"{gateway_id}_{device_type}")}
+            )
+            if device is None:
+                continue
+            remaining = er.async_entries_for_device(
+                entity_registry, device.id, include_disabled_entities=True
+            )
+            if not remaining:
+                device_registry.async_remove_device(device.id)
 
     _add_new_entities()
 
     @callback
     def _handle_coordinator_update() -> None:
         _add_new_entities()
+        _remove_stale_entities()
 
     entry.async_on_unload(coordinator.async_add_listener(_handle_coordinator_update))

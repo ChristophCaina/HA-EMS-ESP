@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -84,6 +84,11 @@ class EmsDynamicSensor(EmsDynamicEntity, SensorEntity):
         if descriptor.device_class_hint:
             try:
                 self._attr_device_class = SensorDeviceClass(descriptor.device_class_hint)
+            except ValueError:
+                pass
+        if descriptor.state_class_hint:
+            try:
+                self._attr_state_class = SensorStateClass(descriptor.state_class_hint)
             except ValueError:
                 pass
 

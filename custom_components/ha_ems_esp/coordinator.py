@@ -47,7 +47,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import CannotConnect, EmsEspApiClient
 from .const import (
     DEFAULT_FIRMWARE_CHECK_INTERVAL,
-    DEFAULT_STRUCTURE_SCAN_INTERVAL,
     DEFAULT_SYSTEM_INFO_SCAN_INTERVAL,
     DOMAIN,
     GITHUB_LATEST_RELEASE_URL,
@@ -111,12 +110,14 @@ class EmsEspStructureCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, 
     Liste zu folgen.
     """
 
-    def __init__(self, hass: HomeAssistant, client: EmsEspApiClient) -> None:
+    def __init__(
+        self, hass: HomeAssistant, client: EmsEspApiClient, scan_interval_seconds: int
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN} structure",
-            update_interval=timedelta(seconds=DEFAULT_STRUCTURE_SCAN_INTERVAL),
+            update_interval=timedelta(seconds=scan_interval_seconds),
         )
         self._client = client
 
@@ -126,12 +127,30 @@ class EmsEspStructureCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, 
             device_types = sorted(
                 {d["type"] for d in system_info.get("devices", []) if d.get("type")}
             )
+            previous = self.data or {}
 
             structure: dict[str, list[dict[str, Any]]] = {}
             for device_type in device_types:
-                structure[device_type] = await self._client.async_get_device_entities(
+                fresh_entities = await self._client.async_get_device_entities(
                     device_type
                 )
+                previous_by_name = {
+                    e.get("name"): e for e in previous.get(device_type, [])
+                }
+                merged_entities: list[dict[str, Any]] = []
+                for entity in fresh_entities:
+                    if "value" not in entity:
+                        # Bestaetigt bei "custom" (Custom Entities): die
+                        # REST-Sammel-Antwort liefert dafuer NIE einen
+                        # "value" - ohne diesen Erhalt wuerde jeder Poll
+                        # den zuletzt per MQTT/Schreibvorgang bekannten
+                        # Wert stillschweigend loeschen.
+                        name = entity.get("name")
+                        old_value = previous_by_name.get(name, {}).get("value")
+                        if old_value is not None:
+                            entity = {**entity, "value": old_value}
+                    merged_entities.append(entity)
+                structure[device_type] = merged_entities
             return structure
         except CannotConnect as err:
             raise UpdateFailed(f"Gateway nicht erreichbar: {err}") from err

@@ -86,7 +86,7 @@ KNOWN_EMS_DEVICE_TYPES = [
     "pump",
     "heatsource",
     "ventilation",
-    "generic",
+    "custom",
 ]
 
 # Platzhalter-Device-Typ fuer das Gateway selbst (kein EMS-Bus-Geraet).

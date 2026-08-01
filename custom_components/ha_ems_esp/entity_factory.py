@@ -33,6 +33,7 @@ from .const import DOMAIN, GATEWAY_LOCAL_DEVICE_TYPES
 EMS_TYPE_NUMBER = "number"
 EMS_TYPE_BOOLEAN = "boolean"
 EMS_TYPE_ENUM = "enum"
+EMS_TYPE_STRING = "string"
 
 
 class EmsEntityPlatform(StrEnum):
@@ -40,6 +41,7 @@ class EmsEntityPlatform(StrEnum):
     NUMBER = "number"
     SWITCH = "switch"
     BINARY_SENSOR = "binary_sensor"
+    TEXT = "text"
     # SELECT folgt, sobald Enum-Optionen aus der API bekannt sind (siehe TODO oben)
 
 
@@ -57,7 +59,7 @@ DEVICE_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "pump": "Pumpe",
     "heatsource": "Wärmequelle",
     "ventilation": "Lüftung",
-    "generic": "Custom Entities",
+    "custom": "Custom Entities",
     "temperaturesensor": "Temperatursensor",
     "analogsensor": "Analogsensor",
 }
@@ -101,6 +103,16 @@ UOM_DEVICE_CLASS_MAP: dict[str, str] = {
     "Pa": "pressure",
 }
 
+# EMS-ESP liefert bei manchen Entities (bestaetigt: Custom Entities) direkt
+# ein "ent_cat"-Feld mit, das ist zuverlaessiger als unsere eigene
+# is_system-Heuristik und wird bevorzugt genutzt, wenn vorhanden. Bisher
+# nur der Wert "diagnostic" mit echten Daten bestaetigt - andere,
+# unbekannte Werte werden NICHT geraten gemappt (lieber keine Kategorie
+# erzwingen als falsch raten).
+ENT_CAT_TO_CATEGORY: dict[str, EntityCategory] = {
+    "diagnostic": EntityCategory.DIAGNOSTIC,
+}
+
 
 @dataclass(frozen=True, kw_only=True)
 class EmsEntityDescriptor:
@@ -116,7 +128,8 @@ class EmsEntityDescriptor:
     min_value: float | None
     max_value: float | None
     numeric_bool: bool  # True: type=="number" aber semantisch 0/1-binaer (siehe _is_binary_number)
-    device_class_hint: str | None  # siehe UOM_DEVICE_CLASS_MAP, String statt konkreter Enum
+    device_class_hint: str | None  # bevorzugt API-eigenes Feld, sonst UOM_DEVICE_CLASS_MAP
+    state_class_hint: str | None  # direkt von der API, nur fuer sensor.py relevant
     raw: dict[str, Any]
 
     @property
@@ -150,8 +163,10 @@ def _platform_for(entity: dict[str, Any]) -> EmsEntityPlatform:
         return EmsEntityPlatform.SWITCH if writeable else EmsEntityPlatform.BINARY_SENSOR
     if ems_type == EMS_TYPE_NUMBER:
         return EmsEntityPlatform.NUMBER if writeable else EmsEntityPlatform.SENSOR
-    # enum (noch kein select, siehe Modul-Docstring) und alles Unbekannte
-    # (z.B. "text"): als Sensor darstellen.
+    if ems_type == EMS_TYPE_STRING:
+        return EmsEntityPlatform.TEXT if writeable else EmsEntityPlatform.SENSOR
+    # enum (noch kein select, siehe Modul-Docstring) und alles Unbekannte:
+    # als Sensor darstellen.
     return EmsEntityPlatform.SENSOR
 
 
@@ -161,8 +176,26 @@ def build_entity_descriptor(device_type: str, entity: dict[str, Any]) -> EmsEnti
     override_name = DISPLAY_NAME_OVERRIDES.get((device_type, key))
     display_name = override_name or (fullname if fullname != key else _prettify(key))
 
-    is_diagnostic = bool(entity.get("is_system")) and (device_type, key) not in PROMOTED_FROM_DIAGNOSTIC
     unit = entity.get("uom") or None
+
+    # entity_category: API-eigenes "ent_cat" bevorzugen (zuverlaessiger),
+    # sonst auf die is_system-Heuristik zurueckfallen (fuer Entities ohne
+    # dieses Feld, z.B. die bisher gesehenen analogsensor/temperaturesensor
+    # Payloads).
+    ent_cat = entity.get("ent_cat")
+    if ent_cat is not None:
+        entity_category = ENT_CAT_TO_CATEGORY.get(ent_cat)
+    elif bool(entity.get("is_system")) and (device_type, key) not in PROMOTED_FROM_DIAGNOSTIC:
+        entity_category = EntityCategory.DIAGNOSTIC
+    else:
+        entity_category = None
+
+    # device_class/state_class: API-eigene Felder bevorzugen (bestaetigt
+    # bei Custom Entities), sonst aus der Einheit ableiten.
+    device_class_hint = entity.get("device_class") or (
+        UOM_DEVICE_CLASS_MAP.get(unit) if unit else None
+    )
+    state_class_hint = entity.get("state_class")
 
     return EmsEntityDescriptor(
         device_type=device_type,
@@ -171,11 +204,12 @@ def build_entity_descriptor(device_type: str, entity: dict[str, Any]) -> EmsEnti
         platform=_platform_for(entity),
         unit=unit,
         writeable=bool(entity.get("writeable")),
-        entity_category=EntityCategory.DIAGNOSTIC if is_diagnostic else None,
+        entity_category=entity_category,
         min_value=entity.get("min"),
         max_value=entity.get("max"),
         numeric_bool=_is_binary_number(entity),
-        device_class_hint=UOM_DEVICE_CLASS_MAP.get(unit) if unit else None,
+        device_class_hint=device_class_hint,
+        state_class_hint=state_class_hint,
         raw=entity,
     )
 
