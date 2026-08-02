@@ -29,6 +29,15 @@ nicht zwangslaeufig Geraet-Offline). Stattdessen loest mqtt.py bei einem
 MQTT-Offline-Signal jetzt einen sofortigen REST-Request aus
 (async_request_refresh) - Verfuegbarkeit bleibt danach korrekt
 selbstheilend allein an REST haengen.
+
+Rate-Limiting (seit EMS-ESP 3.8.3): Die Firmware blockt jetzt zu viele
+GET-Requests in kurzer Folge mit HTTP 429 ("block too many GET requests",
+CHANGELOG #3104). Dagegen: api.py versucht bei 429 automatisch mit Backoff
+erneut, und hier werden Anfragen innerhalb eines Poll-Zyklus zusaetzlich
+mit kleinen Pausen entzerrt (statt sie im Bündel abzufeuern), plus die
+seltenen Duschalarm-Einzelwerte laufen nur noch alle
+EmsEspSystemCoordinator._EXTRA_SETTINGS_EVERY_N_POLLS Zyklen mit, nicht
+bei jedem Poll.
 """
 from __future__ import annotations
 
@@ -74,6 +83,7 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # beim naechsten Poll wieder verloren gehen. Deshalb getrennt
         # gehalten und erst in merged_data() zusammengefuehrt.
         self.mqtt_overlay: dict[str, dict[str, Any]] = {}
+        self._poll_count = 0
 
     # "circuit"-qualifizierte Settings, die NICHT Teil der /api/system/info
     # Sammel-Antwort sind, aber trotzdem in Diagnose-Sensoren landen sollen
@@ -81,7 +91,15 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # zusaetzlich abgefragt und unter "settings" eingemischt, damit
     # gateway_diagnostics.py sie einheitlich lesen kann, egal ob ein Wert
     # aus der Sammel-Antwort oder einem Einzel-Aufruf kommt.
+    #
+    # Nur jeden EXTRA_SETTINGS_EVERY_N_POLLS-ten Zyklus abgefragt (nicht
+    # bei jedem Poll) - das sind fast statische Konfigurationswerte, die
+    # sich praktisch nie aendern, und zusaetzliche Requests bei jedem
+    # 60s-Zyklus tragen unnoetig zum Anfrage-Aufkommen bei. Relevant seit
+    # EMS-ESP 3.8.3 selbst GET-Anfragen in kurzer Folge blockt ("block too
+    # many GET requests", CHANGELOG #3104).
     _EXTRA_SETTINGS = ("showerAlertTrigger", "showerAlertColdshot")
+    _EXTRA_SETTINGS_EVERY_N_POLLS = 10
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -89,17 +107,39 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except CannotConnect as err:
             raise UpdateFailed(f"Gateway nicht erreichbar: {err}") from err
 
-        settings = system_info.setdefault("settings", {})
-        for name in self._EXTRA_SETTINGS:
-            try:
-                detail = await self._client.async_get_system_setting("settings", name)
-            except CannotConnect:
-                # Nicht kritisch fuer den Rest der Diagnose - einfach
-                # auslassen, naechster Poll versucht's erneut.
-                continue
-            if isinstance(detail, dict) and "value" in detail:
-                settings[name] = detail["value"]
+        # NICHT beim allerersten Refresh (poll_count == 0): reproduzierbar
+        # bei jedem Reload fuehrten die Zusatzabfragen direkt neben dem
+        # fast zeitgleichen ersten /api/system/info-Aufruf beider
+        # Coordinators zu "Command failed: no 'settings' in system" im
+        # EMS-ESP-Log (3.8.3). Init-Fenster bewusst frei halten - die
+        # beiden Werte sind ohnehin fast statisch, ein paar Minuten
+        # spaeter zum ersten Mal befuellt macht praktisch keinen Unterschied.
+        if self._poll_count > 0 and self._poll_count % self._EXTRA_SETTINGS_EVERY_N_POLLS == 0:
+            settings = system_info.setdefault("settings", {})
+            for name in self._EXTRA_SETTINGS:
+                await asyncio.sleep(1.0)  # groszuegiger Abstand, siehe Docstring oben
+                try:
+                    detail = await self._client.async_get_system_setting(
+                        "settings", name
+                    )
+                except CannotConnect:
+                    # Nicht kritisch fuer den Rest der Diagnose - einfach
+                    # auslassen, naechster Zyklus versucht's erneut.
+                    continue
+                if isinstance(detail, dict) and "value" in detail:
+                    settings[name] = detail["value"]
+        elif self.data and "settings" in self.data:
+            # In den uebersprungenen Zyklen die zuletzt bekannten Werte
+            # erhalten, statt sie kommentarlos verschwinden zu lassen.
+            system_info.setdefault("settings", {}).update(
+                {
+                    k: v
+                    for k, v in self.data["settings"].items()
+                    if k in self._EXTRA_SETTINGS
+                }
+            )
 
+        self._poll_count += 1
         return system_info
 
     def device_types(self) -> list[str]:
@@ -151,7 +191,9 @@ class EmsEspStructureCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, 
             previous = self.data or {}
 
             structure: dict[str, list[dict[str, Any]]] = {}
-            for device_type in device_types:
+            for index, device_type in enumerate(device_types):
+                if index > 0:
+                    await asyncio.sleep(0.3)  # Anfragen entzerren, siehe coordinator.py Modul-Docstring
                 fresh_entities = await self._client.async_get_device_entities(
                     device_type
                 )

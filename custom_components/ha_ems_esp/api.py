@@ -26,6 +26,11 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 10
+# EMS-ESP 3.8.3+ blockt zu viele GET-Requests in kurzer Folge mit HTTP 429
+# (CHANGELOG "block too many GET requests" #3104). Statt das sofort als
+# "Gateway nicht erreichbar" zu werten, kurz warten und erneut versuchen.
+_MAX_RETRIES_ON_RATE_LIMIT = 2
+_RATE_LIMIT_BACKOFF_SECONDS = 2.0
 
 
 class CannotConnect(Exception):
@@ -110,22 +115,52 @@ class EmsEspApiClient:
 
     async def _post(self, url: str, value: Any) -> dict[str, Any]:
         headers = {"Authorization": f"Bearer {self._api_token}"} if self._api_token else None
-        try:
-            async with asyncio.timeout(REQUEST_TIMEOUT):
-                async with self._session.post(
-                    url, json={"value": value}, headers=headers
-                ) as response:
-                    response.raise_for_status()
-                    return await response.json(content_type=None)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise CannotConnect from err
+        return await self._request("POST", url, json={"value": value}, headers=headers)
 
     async def _get(self, path: str) -> Any:
         url = f"http://{self._host}{path}"
-        try:
-            async with asyncio.timeout(REQUEST_TIMEOUT):
-                async with self._session.get(url) as response:
-                    response.raise_for_status()
-                    return await response.json(content_type=None)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise CannotConnect from err
+        return await self._request("GET", url)
+
+    async def _request(self, method: str, url: str, **kwargs: Any) -> Any:
+        """Fuehrt einen HTTP-Request aus, mit Retry-Backoff bei 429.
+
+        Bestaetigt ab EMS-ESP 3.8.3: das Gateway blockt jetzt selbst zu
+        viele GET-Requests in kurzer Folge ("block too many GET requests",
+        CHANGELOG #3104) mit HTTP 429. Statt das sofort als "Gateway nicht
+        erreichbar" zu werten, kurz warten (respektiert einen etwaigen
+        Retry-After Header) und erneut versuchen.
+        """
+        for attempt in range(_MAX_RETRIES_ON_RATE_LIMIT + 1):
+            try:
+                async with asyncio.timeout(REQUEST_TIMEOUT):
+                    async with self._session.request(method, url, **kwargs) as response:
+                        if response.status == 429:
+                            if attempt >= _MAX_RETRIES_ON_RATE_LIMIT:
+                                raise CannotConnect(
+                                    "429 Too Many Requests (auch nach Wiederholungen)"
+                                )
+                            retry_after = response.headers.get("Retry-After", "")
+                            delay = (
+                                float(retry_after)
+                                if retry_after.replace(".", "", 1).isdigit()
+                                else _RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1)
+                            )
+                            _LOGGER.debug(
+                                "429 von %s - warte %.1fs und versuche erneut (%d/%d)",
+                                url,
+                                delay,
+                                attempt + 1,
+                                _MAX_RETRIES_ON_RATE_LIMIT,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        response.raise_for_status()
+                        return await response.json(content_type=None)
+            except asyncio.TimeoutError as err:
+                raise CannotConnect(f"Zeitüberschreitung nach {REQUEST_TIMEOUT}s") from err
+            except aiohttp.ClientError as err:
+                raise CannotConnect(str(err) or repr(err)) from err
+
+        # Unerreichbar (die 429-Ablehnung oben wirft im letzten Versuch
+        # bereits), aber als Absicherung gegen stillschweigendes None.
+        raise CannotConnect("429 Too Many Requests (auch nach Wiederholungen)")
