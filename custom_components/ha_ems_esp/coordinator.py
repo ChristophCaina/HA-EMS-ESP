@@ -86,19 +86,18 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._poll_count = 0
 
     # "circuit"-qualifizierte Settings, die NICHT Teil der /api/system/info
-    # Sammel-Antwort sind, aber trotzdem in Diagnose-Sensoren landen sollen
-    # (bestaetigt: showerAlertTrigger/showerAlertColdshot). Werden hier
-    # zusaetzlich abgefragt und unter "settings" eingemischt, damit
-    # gateway_diagnostics.py sie einheitlich lesen kann, egal ob ein Wert
-    # aus der Sammel-Antwort oder einem Einzel-Aufruf kommt.
+    # Sammel-Antwort sind, aber trotzdem in Diagnose-Sensoren landen sollen.
     #
-    # Nur jeden EXTRA_SETTINGS_EVERY_N_POLLS-ten Zyklus abgefragt (nicht
-    # bei jedem Poll) - das sind fast statische Konfigurationswerte, die
-    # sich praktisch nie aendern, und zusaetzliche Requests bei jedem
-    # 60s-Zyklus tragen unnoetig zum Anfrage-Aufkommen bei. Relevant seit
-    # EMS-ESP 3.8.3 selbst GET-Anfragen in kurzer Folge blockt ("block too
-    # many GET requests", CHANGELOG #3104).
-    _EXTRA_SETTINGS = ("showerAlertTrigger", "showerAlertColdshot")
+    # WICHTIG (Korrektur einer frueheren Fehldiagnose): showerAlertTrigger/
+    # showerAlertColdshot existieren als Endpunkt NUR, solange das
+    # uebergeordnete Feature (Duschalarm, settings.showerAlert) auf dem
+    # Gateway eingeschaltet ist - kein Firmware-Bug, kein Rate-Limiting,
+    # sondern schlicht bedingte Verfuegbarkeit. Deshalb NUR abfragen, wenn
+    # showerAlert aktuell laut Sammel-Antwort eingeschaltet ist (siehe
+    # _async_update_data) - sonst wuerde jeder Versuch mit
+    # {"message":"no 'settings' in system"} scheitern, unabhaengig von
+    # Anfrage-Timing/-Haeufigkeit.
+    _EXTRA_SETTINGS: tuple[str, ...] = ("showerAlertTrigger", "showerAlertColdshot")
     _EXTRA_SETTINGS_EVERY_N_POLLS = 10
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -107,14 +106,18 @@ class EmsEspSystemCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except CannotConnect as err:
             raise UpdateFailed(f"Gateway nicht erreichbar: {err}") from err
 
-        # NICHT beim allerersten Refresh (poll_count == 0): reproduzierbar
-        # bei jedem Reload fuehrten die Zusatzabfragen direkt neben dem
-        # fast zeitgleichen ersten /api/system/info-Aufruf beider
-        # Coordinators zu "Command failed: no 'settings' in system" im
-        # EMS-ESP-Log (3.8.3). Init-Fenster bewusst frei halten - die
-        # beiden Werte sind ohnehin fast statisch, ein paar Minuten
-        # spaeter zum ersten Mal befuellt macht praktisch keinen Unterschied.
-        if self._poll_count > 0 and self._poll_count % self._EXTRA_SETTINGS_EVERY_N_POLLS == 0:
+        shower_alert_enabled = bool(
+            system_info.get("settings", {}).get("showerAlert")
+        )
+
+        # NICHT beim allerersten Refresh (poll_count == 0): entzerrt den
+        # Init-Moment, in dem beide Coordinators fast zeitgleich ihre erste
+        # /api/system/info-Abfrage machen.
+        if (
+            shower_alert_enabled
+            and self._poll_count > 0
+            and self._poll_count % self._EXTRA_SETTINGS_EVERY_N_POLLS == 0
+        ):
             settings = system_info.setdefault("settings", {})
             for name in self._EXTRA_SETTINGS:
                 await asyncio.sleep(1.0)  # groszuegiger Abstand, siehe Docstring oben
